@@ -12,6 +12,34 @@ def releaseKeyAlias = keystoreProperties.getProperty("keyAlias") ?: System.geten
 def releaseKeyPassword = keystoreProperties.getProperty("keyPassword") ?: System.getenv("CARDLEDGER_KEY_PASSWORD")
 def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
+// Safeguard: normalize any legacy misordered Android night resource directories
+// (e.g., drawable-night-land-xhdpi -> drawable-land-night-xhdpi) before AAPT2 merges resources.
+def resRootDir = file("src/main/res")
+if (resRootDir.exists()) {
+    resRootDir.listFiles()?.each { File dir ->
+        if (dir.isDirectory()) {
+            def matcher = (dir.name =~ /^drawable-night-(land|port)(-.+)?$/)
+            if (matcher.matches()) {
+                def orientation = matcher[0][1]
+                def suffix = matcher[0][2] ?: ""
+                def targetDir = new File(resRootDir, "drawable-${orientation}-night${suffix}")
+                if (!targetDir.exists()) {
+                    targetDir.mkdirs()
+                }
+                dir.listFiles()?.each { File child ->
+                    def destFile = new File(targetDir, child.name)
+                    if (!destFile.exists()) {
+                        child.renameTo(destFile)
+                    } else {
+                        child.delete()
+                    }
+                }
+                dir.deleteDir()
+            }
+        }
+    }
+}
+
 android {
     namespace = "com.rahul2327.cardledger"
     compileSdk = rootProject.ext.compileSdkVersion

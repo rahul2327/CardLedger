@@ -23,19 +23,31 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
-      - name: Build web application
+      - name: Build web bundle for Android
         run: bun run build
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
+
+      - name: Ensure valid Android resource directory names
+        run: |
+          for bad_dir in android/app/src/main/res/drawable-night-land-* android/app/src/main/res/drawable-night-port-*; do
+            [ -d "$bad_dir" ] || continue
+            base=$(basename "$bad_dir")
+            fixed=$(echo "$base" | sed -E 's/^drawable-night-(land|port)-/drawable-\1-night-/')
+            target="android/app/src/main/res/$fixed"
+            mkdir -p "$target"
+            cp -rn "$bad_dir"/. "$target"/ 2>/dev/null || true
+            rm -rf "$bad_dir"
+          done
 
       - name: Build debug APK
         working-directory: android

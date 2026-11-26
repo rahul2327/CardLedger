@@ -22,7 +22,6 @@ import type {
 import {getTodayDateString} from '../../utils/financeEngine';
 import {CURRENCY_OPTIONS, formatMoney} from '../../utils/formatters';
 import {ConfirmDialog} from '../ui/DialogShell';
-import {PWAInstallButton} from '../ui/PWAInstallButton';
 
 interface SettingsScreenProps {
   settings: AppSettings;
@@ -248,17 +247,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </p>
       </section>
 
-      {/* Offline Install & Data Utilities */}
+      {/* Data Utilities */}
       <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-6 space-y-4">
         <div>
           <h2 className="text-base font-semibold text-m3-on-surface">Device &amp; Data Tools</h2>
           <p className="mt-0.5 text-xs text-m3-on-surface-variant">
-            Install CardLedger for offline home-screen access or reset your local ledger
+            Load sample cards or reset your local device ledger
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <PWAInstallButton />
 
           <button
             type="button"

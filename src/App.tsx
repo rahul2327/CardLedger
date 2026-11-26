@@ -10,7 +10,6 @@ import {
   ReceiptText,
   Settings,
   Sun,
-  WifiOff,
 } from 'lucide-react';
 import {BankBalanceModal} from './components/modals/BankBalanceModal';
 import {CardFormModal} from './components/modals/CardFormModal';
@@ -24,9 +23,7 @@ import {DashboardScreen} from './components/screens/DashboardScreen';
 import {HistoryScreen} from './components/screens/HistoryScreen';
 import {SettingsScreen} from './components/screens/SettingsScreen';
 import {ConfirmDialog} from './components/ui/DialogShell';
-import {PWAInstallButton} from './components/ui/PWAInstallButton';
 import {useFinanceStore} from './hooks/useFinanceStore';
-import {useOnlineStatus} from './hooks/usePWAInstall';
 import {useThemeEffect} from './hooks/useTheme';
 import type {CreditCard, NavTab, ThemeMode, Transaction} from './types/finance';
 import {formatMoney, formatShortDate} from './utils/formatters';
@@ -34,7 +31,6 @@ import {
   hideNativeSplash,
   initNativeKeyboardHandling,
   isNativeAndroid,
-  isNativePlatform,
 } from './utils/nativeAndroid';
 
 const NAV_ITEMS: Array<{id: NavTab; label: string; icon: React.ComponentType<{className?: string}>}> = [
@@ -76,7 +72,6 @@ const THEME_QUICK_OPTIONS: Array<{value: ThemeMode; label: string; icon: React.C
 
 export default function App() {
   const store = useFinanceStore();
-  const isOnline = useOnlineStatus();
   useThemeEffect(store.settings.theme);
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
@@ -317,9 +312,8 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Bottom Drawer Utilities: Compact Theme Switcher & Offline Install */}
+        {/* Bottom Drawer Utilities: Compact Theme Switcher */}
         <div className="space-y-3 pt-4 border-t border-m3-outline-variant/50">
-          <PWAInstallButton compact />
 
           <div
             className="grid grid-cols-3 p-1 rounded-full bg-m3-surface-container border border-m3-outline-variant/60"
@@ -354,13 +348,6 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Offline Mode Notice (web browsers only; native Android operates offline by default) */}
-        {!isNativePlatform() && !isOnline && (
-          <div className="bg-m3-tertiary-container text-m3-on-tertiary-container px-4 py-2 text-xs font-medium flex items-center justify-center gap-2">
-            <WifiOff className="w-3.5 h-3.5 shrink-0" />
-            <span>Working offline — all changes are saved locally on this device.</span>
-          </div>
-        )}
 
         {/* Top Page Header (Non-sticky on mobile to keep fixed surfaces well below 15% cap) */}
         <header className="px-4 sm:px-6 lg:px-8 pt-5 pb-4 flex items-center justify-between gap-4 max-w-7xl w-full mx-auto">
