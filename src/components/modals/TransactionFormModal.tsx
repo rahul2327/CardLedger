@@ -196,9 +196,9 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
             role="tab"
             aria-selected={type === 'spend'}
             onClick={() => handleTypeChange('spend')}
-            className={`min-h-[40px] rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`h-10 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap ${
               type === 'spend'
-                ? 'bg-m3-primary text-m3-on-primary shadow-xs'
+                ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
                 : 'text-m3-on-surface-variant hover:text-m3-on-surface'
             }`}
           >
@@ -209,9 +209,9 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
             role="tab"
             aria-selected={type === 'payment'}
             onClick={() => handleTypeChange('payment')}
-            className={`min-h-[40px] rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`h-10 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap ${
               type === 'payment'
-                ? 'bg-m3-primary text-m3-on-primary shadow-xs'
+                ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
                 : 'text-m3-on-surface-variant hover:text-m3-on-surface'
             }`}
           >
@@ -415,18 +415,18 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
         {error && <p className="text-xs text-m3-error">{error}</p>}
 
-        <div className="flex items-center justify-end gap-3 pt-1">
+        <div className="flex items-center justify-end gap-2.5 pt-1">
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] px-5 rounded-full text-sm font-medium text-m3-on-surface-variant hover:bg-m3-surface-high transition-colors"
+            className="h-10 px-4 rounded-full text-[13px] font-medium text-m3-on-surface-variant hover:bg-m3-surface-high transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="min-h-[44px] px-6 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="h-10 px-5 rounded-full bg-m3-primary text-m3-on-primary text-[13px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {saving
               ? 'Saving...'

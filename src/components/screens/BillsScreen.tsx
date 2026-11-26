@@ -100,7 +100,7 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
         <button
           type="button"
           onClick={onAddCard}
-          className="mt-6 min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+          className="mt-5 h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
         >
           <Plus className="w-4 h-4" />
           <span>Add Credit Card</span>
@@ -153,7 +153,7 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div
-          className="inline-flex p-1 rounded-full bg-m3-surface-container border border-m3-outline-variant/60 self-start"
+          className="grid grid-cols-3 sm:inline-flex p-1 rounded-full bg-m3-surface-container border border-m3-outline-variant/60 w-full sm:w-auto"
           role="tablist"
           aria-label="Filter bills by status"
         >
@@ -164,13 +164,13 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
               role="tab"
               aria-selected={statusFilter === key}
               onClick={() => setStatusFilter(key)}
-              className={`min-h-[38px] px-4 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+              className={`h-9 px-3 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap truncate ${
                 statusFilter === key
-                  ? 'bg-m3-primary text-m3-on-primary'
+                  ? 'bg-m3-secondary-container text-m3-on-secondary-container'
                   : 'text-m3-on-surface-variant hover:text-m3-on-surface'
               }`}
             >
-              {key === 'all' ? 'All Bills' : key === 'unpaid' ? 'Unpaid & Partial' : 'Paid'}
+              {key === 'all' ? 'All' : key === 'unpaid' ? 'Unpaid' : 'Paid'}
             </button>
           ))}
         </div>
@@ -179,7 +179,7 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
           aria-label="Filter statements by credit card"
           value={selectedCardFilter}
           onChange={(e) => setSelectedCardFilter(e.target.value)}
-          className="min-h-[44px] px-4 rounded-full bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant text-sm text-m3-on-surface focus:border-m3-primary focus:outline-none"
+          className="h-10 px-4 rounded-full bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant text-[13px] text-m3-on-surface focus:border-m3-primary focus:outline-none"
         >
           <option value="all">All Credit Cards</option>
           {summary.cardSummaries.map((cs) => (
@@ -282,7 +282,7 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
                             statementCycleKey: statement.cycleKey,
                           })
                         }
-                        className="min-h-[42px] px-4 rounded-full bg-m3-primary text-m3-on-primary text-xs font-medium hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+                        className="h-9 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
                       >
                         Pay Bill
                       </button>
@@ -357,7 +357,7 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenTransactionModal({type: 'spend', cardId: cs.card.id})}
-                    className="min-h-[40px] px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-xs font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+                    className="h-9 px-3.5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
                   >
                     <CreditCardIcon className="w-3.5 h-3.5" />
                     <span>Add Spend</span>

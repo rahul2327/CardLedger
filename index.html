@@ -15,20 +15,20 @@
     />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#F7FAF9" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0F1514" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F8F9FA" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <script>
       (function () {
         try {
-          var saved = localStorage.getItem('cardledger_theme') || 'system';
+          var saved = localStorage.getItem('cardledger_theme') || 'dark';
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           var isDark = saved === 'dark' || (saved === 'system' && prefersDark);
           document.documentElement.classList.toggle('dark', isDark);
           var meta = document.createElement('meta');
           meta.name = 'theme-color';
           meta.id = 'dynamic-theme-color';
-          meta.content = isDark ? '#0F1514' : '#F7FAF9';
+          meta.content = isDark ? '#131314' : '#F8F9FA';
           document.head.appendChild(meta);
         } catch (e) {}
       })();

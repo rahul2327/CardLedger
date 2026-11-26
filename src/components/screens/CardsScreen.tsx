@@ -77,7 +77,7 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
         <button
           type="button"
           onClick={onAddCard}
-          className="mt-6 min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+          className="mt-5 h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
         >
           <Plus className="w-4 h-4" />
           <span>Add Credit Card</span>
@@ -87,19 +87,19 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-m3-on-surface">Your Credit Cards</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-m3-on-surface">Your Credit Cards</h2>
           <p className="text-xs text-m3-on-surface-variant">
-            Select a card to inspect its billing cycles, statements, and transactions
+            Select a card to inspect billing cycles and activity
           </p>
         </div>
         <button
           type="button"
           onClick={onAddCard}
-          className="min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+          className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Add Card</span>
@@ -212,13 +212,13 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() =>
                   onOpenTransactionModal({type: 'spend', cardId: activeSummary.card.id})
                 }
-                className="min-h-[42px] px-4 rounded-full bg-m3-primary text-m3-on-primary text-xs font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+                className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Spend</span>
@@ -238,16 +238,16 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
                     description: `${activeSummary.card.name} Bill Payment`,
                   })
                 }
-                className="min-h-[42px] px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-xs font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+                className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
               >
                 <ArrowDownLeft className="w-4 h-4" />
-                <span>Record Payment</span>
+                <span>Pay Bill</span>
               </button>
               <button
                 type="button"
                 onClick={() => onEditCard(activeSummary.card)}
                 aria-label={`Edit ${activeSummary.card.name}`}
-                className="min-h-[42px] min-w-[42px] rounded-full border border-m3-outline-variant text-m3-on-surface-variant hover:bg-m3-surface-high flex items-center justify-center transition-colors"
+                className="h-10 w-10 rounded-full bg-m3-surface-high text-m3-on-surface-variant hover:text-m3-on-surface flex items-center justify-center transition-colors shrink-0"
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -255,7 +255,7 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
                 type="button"
                 onClick={() => onDeleteCard(activeSummary.card)}
                 aria-label={`Delete ${activeSummary.card.name}`}
-                className="min-h-[42px] min-w-[42px] rounded-full border border-m3-outline-variant text-m3-on-surface-variant hover:text-m3-error hover:bg-m3-error-container/50 flex items-center justify-center transition-colors"
+                className="h-10 w-10 rounded-full bg-m3-surface-high text-m3-on-surface-variant hover:text-m3-error hover:bg-m3-error-container/50 flex items-center justify-center transition-colors shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

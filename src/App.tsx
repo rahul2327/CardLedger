@@ -44,23 +44,23 @@ const NAV_ITEMS: Array<{id: NavTab; label: string; icon: React.ComponentType<{cl
 const PAGE_TITLES: Record<NavTab, {title: string; subtitle: string}> = {
   dashboard: {
     title: 'Overview',
-    subtitle: 'Bank balance, credit card dues, and upcoming bills',
+    subtitle: 'Bank balance, card dues & upcoming bills',
   },
   cards: {
     title: 'Credit Cards',
-    subtitle: 'Card limits, billing cycles, and per-card spending',
+    subtitle: 'Limits, billing cycles & per-card spending',
   },
   bills: {
     title: 'Bills & Cycles',
-    subtitle: 'Generated statements and current unbilled activity',
+    subtitle: 'Generated statements & unbilled activity',
   },
   history: {
     title: 'Transactions',
-    subtitle: 'Search, filter, and manage every card entry',
+    subtitle: 'Search, filter & manage every card entry',
   },
   settings: {
     title: 'Settings',
-    subtitle: 'Theme, currency, local JSON backup, and offline storage',
+    subtitle: 'Theme, currency & local JSON backups',
   },
 };
 
@@ -270,13 +270,13 @@ export default function App() {
             </span>
           </div>
 
-          {/* Primary Extended FAB */}
+          {/* Primary Extended FAB (Google Messages M3 proportion) */}
           <button
             type="button"
             onClick={() =>
               store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
             }
-            className="w-full min-h-[52px] px-5 rounded-2xl bg-m3-primary-container text-m3-on-primary-container font-medium text-sm inline-flex items-center justify-center gap-2.5 shadow-xs hover:opacity-95 active:scale-[0.99] transition-all whitespace-nowrap"
+            className="w-full h-14 px-4 rounded-2xl bg-m3-primary-container text-m3-on-primary-container font-medium text-sm inline-flex items-center justify-center gap-2.5 shadow-sm hover:opacity-95 active:scale-[0.99] transition-all whitespace-nowrap"
           >
             <Plus className="w-5 h-5 shrink-0" />
             <span>{store.cards.length === 0 ? 'Add Credit Card' : 'Add Spending'}</span>
@@ -347,74 +347,73 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 min-w-0 flex flex-col">
-
-        {/* Top Page Header (Non-sticky on mobile to keep fixed surfaces well below 15% cap) */}
-        <header className="px-4 sm:px-6 lg:px-8 pt-5 pb-4 flex items-center justify-between gap-4 max-w-7xl w-full mx-auto">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 md:hidden mb-1">
+      <div className="flex-1 min-w-0 flex flex-col pt-safe">
+        {/* Google Messages-inspired Top App Header */}
+        <header className="px-4 sm:px-6 lg:px-8 pt-3.5 sm:pt-5 pb-3.5 flex items-start justify-between gap-3 max-w-7xl w-full mx-auto">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 md:hidden mb-1">
               <img
                 src="/icon.svg"
                 alt="CardLedger logo"
-                className="w-6 h-6 rounded-lg shrink-0"
+                className="w-5 h-5 rounded-md shrink-0"
               />
-              <span className="font-display text-sm font-bold tracking-tight text-m3-primary">
+              <span className="font-display text-xs font-semibold tracking-tight text-m3-primary">
                 CardLedger
               </span>
             </div>
-            <h1 className="text-2xl sm:text-[26px] font-semibold tracking-tight text-m3-on-surface truncate">
+            <h1 className="text-[22px] sm:text-2xl font-semibold tracking-tight text-m3-on-surface leading-tight">
               {pageMeta.title}
             </h1>
-            <p className="mt-0.5 text-xs sm:text-sm text-m3-on-surface-variant truncate">
+            <p className="mt-0.5 text-xs sm:text-sm text-m3-on-surface-variant leading-snug">
               {pageMeta.subtitle}
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            {/* Quick Mobile Theme Toggle */}
+          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            {/* Quick Mobile Theme Toggle (Google Messages 40px icon button) */}
             <button
               type="button"
               onClick={() => {
-                const order: ThemeMode[] = ['light', 'dark', 'system'];
+                const order: ThemeMode[] = ['dark', 'light', 'system'];
                 const next = order[(order.indexOf(store.settings.theme) + 1) % order.length];
                 store.updateTheme(next);
                 notify(
                   next === 'system'
-                    ? 'Theme set to System Default.'
+                    ? 'Theme set to System.'
                     : `Switched to ${next === 'dark' ? 'Dark' : 'Light'} Mode.`
                 );
               }}
               aria-label="Switch color theme"
               title={`Theme: ${store.settings.theme}`}
-              className="md:hidden min-h-[44px] min-w-[44px] rounded-full bg-m3-surface-low border border-m3-outline-variant/70 text-m3-on-surface-variant flex items-center justify-center hover:bg-m3-surface-high transition-colors"
+              className="md:hidden h-10 w-10 rounded-full bg-m3-surface-container text-m3-on-surface-variant flex items-center justify-center hover:bg-m3-surface-high active:scale-95 transition-all"
             >
               {store.settings.theme === 'dark' ? (
-                <Moon className="w-4 h-4" />
+                <Moon className="w-[18px] h-[18px]" />
               ) : store.settings.theme === 'light' ? (
-                <Sun className="w-4 h-4" />
+                <Sun className="w-[18px] h-[18px]" />
               ) : (
-                <Monitor className="w-4 h-4" />
+                <Monitor className="w-[18px] h-[18px]" />
               )}
             </button>
 
-            {/* Desktop Secondary Quick Action: Record Payment */}
+            {/* Tablet/Desktop Secondary Quick Action: Record Payment */}
             {store.cards.length > 0 && (
               <button
                 type="button"
                 onClick={() => openTransactionModal({type: 'payment'})}
-                className="hidden sm:inline-flex min-h-[44px] px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-xs font-medium items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+                className="hidden sm:inline-flex h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
               >
                 <span>Record Payment</span>
               </button>
             )}
 
-            {/* Desktop Primary Quick-Add Spending CTA (for quick access from top bar too) */}
+            {/* Tablet Quick-Add Spending CTA */}
             <button
               type="button"
               onClick={() =>
                 store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
               }
-              className="hidden sm:inline-flex md:hidden min-h-[44px] px-4 rounded-full bg-m3-primary text-m3-on-primary text-xs font-medium items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+              className="hidden sm:inline-flex md:hidden h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               <span>{store.cards.length === 0 ? 'Add Card' : 'Add Spend'}</span>
@@ -422,8 +421,12 @@ export default function App() {
           </div>
         </header>
 
-        {/* Active Screen Viewport */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 pb-28 md:pb-10 max-w-7xl w-full mx-auto">
+        {/* Active Screen Viewport (extra bottom padding clears FAB + Bottom Nav cleanly) */}
+        <main
+          className={`flex-1 px-4 sm:px-6 lg:px-8 md:pb-10 max-w-7xl w-full mx-auto ${
+            activeTab === 'settings' ? 'pb-24' : 'pb-36'
+          }`}
+        >
           {store.storageError && (
             <div className="mb-6 rounded-2xl bg-m3-error-container text-m3-on-error-container p-4 text-sm">
               {store.storageError}
@@ -527,25 +530,27 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile Material 3 Floating Action Button */}
-      <button
-        type="button"
-        onClick={() =>
-          store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
-        }
-        aria-label={store.cards.length === 0 ? 'Add credit card' : 'Add spending'}
-        className="md:hidden fixed right-4 bottom-20 z-30 h-14 px-4 rounded-2xl bg-m3-primary text-m3-on-primary shadow-lg inline-flex items-center gap-2 font-medium text-sm active:scale-95 transition-transform"
-      >
-        <Plus className="w-5 h-5" />
-        <span>{store.cards.length === 0 ? 'Add Card' : 'Add Spend'}</span>
-      </button>
+      {/* Mobile Google Messages Extended FAB (hidden on Settings screen) */}
+      {activeTab !== 'settings' && (
+        <button
+          type="button"
+          onClick={() =>
+            store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
+          }
+          aria-label={store.cards.length === 0 ? 'Add credit card' : 'Add spending'}
+          className="md:hidden fixed right-4 bottom-[84px] z-30 h-14 px-4 rounded-2xl bg-m3-primary-container text-m3-on-primary-container shadow-lg shadow-black/25 inline-flex items-center gap-2 font-medium text-sm active:scale-95 transition-transform whitespace-nowrap"
+        >
+          <Plus className="w-5 h-5 shrink-0" />
+          <span>{store.cards.length === 0 ? 'Add card' : 'Add spend'}</span>
+        </button>
+      )}
 
-      {/* Mobile Material 3 Bottom Navigation Bar */}
+      {/* Mobile Google Messages M3 Bottom Navigation Bar */}
       <nav
         aria-label="Mobile navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-m3-surface-low/95 backdrop-blur-md border-t border-m3-outline-variant/60 pb-safe"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-m3-surface-low border-t border-m3-outline-variant/40 pb-safe"
       >
-        <div className="grid grid-cols-5 h-16 items-center">
+        <div className="grid grid-cols-5 h-[68px] items-center px-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -555,19 +560,19 @@ export default function App() {
                 type="button"
                 onClick={() => navigateToTab(item.id)}
                 aria-current={isActive ? 'page' : undefined}
-                className="min-h-[48px] flex flex-col items-center justify-center gap-1 transition-colors"
+                className="min-h-[48px] flex flex-col items-center justify-center gap-1 min-w-0 transition-colors"
               >
                 <span
-                  className={`w-12 h-7 rounded-full flex items-center justify-center transition-colors ${
+                  className={`w-14 h-8 rounded-full flex items-center justify-center transition-colors ${
                     isActive
                       ? 'bg-m3-secondary-container text-m3-on-secondary-container'
                       : 'text-m3-on-surface-variant'
                   }`}
                 >
-                  <Icon className="w-[18px] h-[18px]" />
+                  <Icon className="w-[19px] h-[19px]" />
                 </span>
                 <span
-                  className={`text-[11px] leading-none tracking-tight ${
+                  className={`text-[11px] leading-none tracking-tight truncate max-w-full px-0.5 ${
                     isActive
                       ? 'font-semibold text-m3-on-surface'
                       : 'font-medium text-m3-on-surface-variant'
@@ -586,7 +591,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
-          className="fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-6 z-50 px-5 py-3 rounded-2xl bg-m3-on-surface text-m3-surface text-sm font-medium shadow-xl max-w-[90vw] truncate"
+          className="fixed left-1/2 -translate-x-1/2 bottom-[88px] md:bottom-6 z-50 px-4 py-2.5 rounded-xl bg-m3-on-surface text-m3-surface text-[13px] font-medium shadow-xl max-w-[90vw] truncate"
         >
           {toastMessage}
         </div>

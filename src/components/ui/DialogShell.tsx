@@ -120,18 +120,18 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </label>
       )}
 
-      <div className="mt-6 flex items-center justify-end gap-3">
+      <div className="mt-6 flex items-center justify-end gap-2.5">
         <button
           type="button"
           onClick={onClose}
-          className="min-h-[44px] px-5 rounded-full text-sm font-medium text-m3-on-surface-variant hover:bg-m3-surface-high transition-colors whitespace-nowrap shrink-0"
+          className="h-10 px-4 rounded-full text-[13px] font-medium text-m3-on-surface-variant hover:bg-m3-surface-high transition-colors whitespace-nowrap shrink-0"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={onConfirm}
-          className={`min-h-[44px] px-5 rounded-full text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+          className={`h-10 px-5 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 ${
             destructive
               ? 'bg-m3-error text-m3-on-error hover:opacity-90'
               : 'bg-m3-primary text-m3-on-primary hover:opacity-90'

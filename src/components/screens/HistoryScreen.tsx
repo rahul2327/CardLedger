@@ -117,9 +117,9 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by description or card name..."
+              placeholder="Search transactions or cards"
               aria-label="Search transactions"
-              className="w-full min-h-[46px] pl-11 pr-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-sm text-m3-on-surface placeholder:text-m3-on-surface-variant/70 focus:border-m3-primary focus:outline-none transition-colors"
+              className="w-full h-11 pl-11 pr-4 rounded-full bg-m3-surface-high border border-transparent text-[13px] text-m3-on-surface placeholder:text-m3-on-surface-variant/80 focus:border-m3-primary focus:outline-none transition-colors"
             />
           </div>
 
@@ -127,7 +127,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))}
-            className="min-h-[46px] px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-sm font-medium text-m3-on-surface inline-flex items-center justify-center gap-2 hover:bg-m3-surface-high transition-colors whitespace-nowrap shrink-0"
+            className="h-10 px-4 rounded-full bg-m3-surface-high text-[13px] font-medium text-m3-on-surface inline-flex items-center justify-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
           >
             <ArrowUpDown className="w-4 h-4 text-m3-on-surface-variant" />
             <span>{sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
@@ -138,7 +138,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
           {/* Type Filter */}
           <div
-            className="grid grid-cols-3 p-1 rounded-full bg-m3-surface-low border border-m3-outline-variant/70"
+            className="grid grid-cols-3 p-1 rounded-full bg-m3-surface-low border border-m3-outline-variant/60"
             role="tablist"
             aria-label="Filter by transaction type"
           >
@@ -149,13 +149,13 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                 role="tab"
                 aria-selected={typeFilter === key}
                 onClick={() => setTypeFilter(key)}
-                className={`min-h-[36px] rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                className={`h-9 px-2 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap truncate ${
                   typeFilter === key
-                    ? 'bg-m3-primary text-m3-on-primary'
+                    ? 'bg-m3-secondary-container text-m3-on-secondary-container'
                     : 'text-m3-on-surface-variant hover:text-m3-on-surface'
                 }`}
               >
-                {key === 'all' ? 'All' : key === 'spend' ? 'Spending' : 'Payments'}
+                {key === 'all' ? 'All' : key === 'spend' ? 'Spend' : 'Paid'}
               </button>
             ))}
           </div>
@@ -165,7 +165,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
             aria-label="Filter by credit card"
             value={cardFilter}
             onChange={(e) => setCardFilter(e.target.value)}
-            className="min-h-[44px] px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-sm text-m3-on-surface focus:border-m3-primary focus:outline-none"
+            className="h-10 px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-[13px] text-m3-on-surface focus:border-m3-primary focus:outline-none"
           >
             <option value="all">All Cards</option>
             {cards.map((card) => (
@@ -267,7 +267,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenTransactionModal({type: 'spend'})}
-                className="mt-5 min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+                className="mt-5 h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Spending</span>

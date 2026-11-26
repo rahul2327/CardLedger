@@ -41,78 +41,80 @@
   --color-m3-outline-variant: var(--m3-outline-variant);
 }
 
+/* Google Messages Material You — Light Theme */
 :root {
   color-scheme: light;
-  --m3-surface: #F7FAF9;
+  --m3-surface: #F8F9FA;
   --m3-surface-lowest: #FFFFFF;
-  --m3-surface-low: #F1F6F4;
-  --m3-surface-container: #EAF1EE;
-  --m3-surface-high: #E2EBE8;
-  --m3-surface-highest: #DAE5E1;
+  --m3-surface-low: #F0F4F9;
+  --m3-surface-container: #EEF3FA;
+  --m3-surface-high: #E4EBF4;
+  --m3-surface-highest: #DAE3EF;
 
-  --m3-on-surface: #171D1C;
-  --m3-on-surface-variant: #44504D;
+  --m3-on-surface: #1F1F1F;
+  --m3-on-surface-variant: #444746;
 
-  --m3-primary: #196A5E;
+  --m3-primary: #0B57D0;
   --m3-on-primary: #FFFFFF;
-  --m3-primary-container: #C7EBE3;
-  --m3-on-primary-container: #00201C;
+  --m3-primary-container: #C2E7FF;
+  --m3-on-primary-container: #001D35;
 
-  --m3-secondary-container: #D8E8E3;
-  --m3-on-secondary-container: #132C28;
+  --m3-secondary-container: #D3E3FD;
+  --m3-on-secondary-container: #041E49;
 
   --m3-tertiary: #8A5A00;
-  --m3-tertiary-container: #F6E4C5;
-  --m3-on-tertiary-container: #2D1B00;
+  --m3-tertiary-container: #FDE7C2;
+  --m3-on-tertiary-container: #2B1A00;
 
-  --m3-error: #BA1A1A;
+  --m3-error: #B3261E;
   --m3-on-error: #FFFFFF;
-  --m3-error-container: #FFDAD6;
-  --m3-on-error-container: #410002;
+  --m3-error-container: #F9DEDC;
+  --m3-on-error-container: #410E0B;
 
-  --m3-success: #166B44;
-  --m3-success-container: #CBEFD9;
-  --m3-on-success-container: #002112;
+  --m3-success: #146C2E;
+  --m3-success-container: #C4EED0;
+  --m3-on-success-container: #072711;
 
-  --m3-outline: #6F7B78;
-  --m3-outline-variant: #D0DBD7;
+  --m3-outline: #747775;
+  --m3-outline-variant: #DDE3EA;
 }
 
+/* Google Messages Material You — Dark Theme */
 .dark {
   color-scheme: dark;
-  --m3-surface: #0F1514;
-  --m3-surface-lowest: #0B100F;
-  --m3-surface-low: #151D1B;
-  --m3-surface-container: #1B2422;
-  --m3-surface-high: #232E2B;
-  --m3-surface-highest: #2B3835;
+  --m3-surface: #131314;
+  --m3-surface-lowest: #0E0E0F;
+  --m3-surface-low: #1B1C1E;
+  --m3-surface-container: #1E1F22;
+  --m3-surface-high: #282A2E;
+  --m3-surface-highest: #33363B;
 
-  --m3-on-surface: #E2EAE7;
-  --m3-on-surface-variant: #B5C3BF;
+  --m3-on-surface: #E3E3E3;
+  --m3-on-surface-variant: #C4C7C5;
 
-  --m3-primary: #82D5C5;
-  --m3-on-primary: #003730;
-  --m3-primary-container: #005046;
-  --m3-on-primary-container: #A4F2E2;
+  --m3-primary: #A8C7FA;
+  --m3-on-primary: #062E6F;
+  --m3-primary-container: #004A77;
+  --m3-on-primary-container: #C2E7FF;
 
-  --m3-secondary-container: #263A36;
-  --m3-on-secondary-container: #CFE5DF;
+  --m3-secondary-container: #273447;
+  --m3-on-secondary-container: #D3E3FD;
 
-  --m3-tertiary: #E7BF78;
-  --m3-tertiary-container: #4A3612;
-  --m3-on-tertiary-container: #F6E4C5;
+  --m3-tertiary: #FCD299;
+  --m3-tertiary-container: #493617;
+  --m3-on-tertiary-container: #FFDEA6;
 
-  --m3-error: #FFB4AB;
-  --m3-on-error: #690005;
-  --m3-error-container: #93000A;
-  --m3-on-error-container: #FFDAD6;
+  --m3-error: #F2B8B5;
+  --m3-on-error: #601410;
+  --m3-error-container: #8C1D18;
+  --m3-on-error-container: #F9DEDC;
 
-  --m3-success: #86D9A8;
-  --m3-success-container: #0A4D2F;
-  --m3-on-success-container: #CBEFD9;
+  --m3-success: #6DD58C;
+  --m3-success-container: #0F5223;
+  --m3-on-success-container: #C4EED0;
 
-  --m3-outline: #899692;
-  --m3-outline-variant: #2D3936;
+  --m3-outline: #8E918F;
+  --m3-outline-variant: #34373B;
 }
 
 @layer base {
@@ -143,7 +145,11 @@
   outline-offset: 2px;
 }
 
-/* Safe area padding helper for mobile bottom nav */
+/* Safe area padding helpers */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

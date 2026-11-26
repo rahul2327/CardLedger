@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   bankName: 'Primary Bank Account',
   bankUpdatedAt: new Date().toISOString(),
   currency: 'INR',
-  theme: 'system',
+  theme: 'dark',
 };
 
 function openDatabase(): Promise<IDBDatabase> {

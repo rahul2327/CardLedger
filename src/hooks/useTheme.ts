@@ -2,8 +2,8 @@ import {useEffect} from 'react';
 import type {ThemeMode} from '../types/finance';
 import {syncNativeSystemBars} from '../utils/nativeAndroid';
 
-const LIGHT_THEME_COLOR = '#F7FAF9';
-const DARK_THEME_COLOR = '#0F1514';
+const LIGHT_THEME_COLOR = '#F8F9FA';
+const DARK_THEME_COLOR = '#131314';
 
 export function useThemeEffect(theme: ThemeMode): void {
   useEffect(() => {

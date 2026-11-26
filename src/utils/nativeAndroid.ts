@@ -3,8 +3,8 @@ import {Keyboard} from '@capacitor/keyboard';
 import {SplashScreen} from '@capacitor/splash-screen';
 import {StatusBar, Style} from '@capacitor/status-bar';
 
-const LIGHT_BAR_COLOR = '#F7FAF9';
-const DARK_BAR_COLOR = '#0F1514';
+const LIGHT_BAR_COLOR = '#F8F9FA';
+const DARK_BAR_COLOR = '#131314';
 
 export function isNativePlatform(): boolean {
   return Capacitor.isNativePlatform();

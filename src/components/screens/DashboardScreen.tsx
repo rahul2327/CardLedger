@@ -66,14 +66,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const isShortfall = summary.balanceAfterCCPayments < 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Top 4 Material 3 Financial Metric Cards */}
-      <section aria-label="Financial overview" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <section aria-label="Financial overview" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
         {/* 1. Bank Balance */}
-        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-5 flex flex-col justify-between gap-4">
+        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-4 sm:p-5 flex flex-col justify-between gap-3.5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-m3-on-surface-variant">Bank Balance</p>
+              <p className="text-[13px] font-medium text-m3-on-surface-variant">Bank Balance</p>
               <p className="mt-0.5 text-xs text-m3-on-surface-variant/80 truncate">
                 {settings.bankName}
               </p>
@@ -81,9 +81,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <button
               type="button"
               onClick={onEditBankBalance}
-              className="min-h-[40px] px-3 rounded-full bg-m3-surface-low hover:bg-m3-surface-high text-xs font-medium text-m3-primary inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              className="h-9 px-3.5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap shrink-0"
             >
-              <Pencil className="w-3.5 h-3.5" />
+              <Pencil className="w-3.5 h-3.5 shrink-0" />
               <span>Update</span>
             </button>
           </div>
@@ -98,9 +98,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
 
         {/* 2. Total CC Outstanding */}
-        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-5 flex flex-col justify-between gap-4">
+        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-4 sm:p-5 flex flex-col justify-between gap-3.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-m3-on-surface-variant">Total CC Outstanding</p>
+            <p className="text-[13px] font-medium text-m3-on-surface-variant">Total CC Outstanding</p>
             <CreditCardIcon className="w-4 h-4 text-m3-on-surface-variant shrink-0" />
           </div>
           <div>
@@ -121,9 +121,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
 
         {/* 3. Upcoming CC Bills */}
-        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-5 flex flex-col justify-between gap-4">
+        <div className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-4 sm:p-5 flex flex-col justify-between gap-3.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium text-m3-on-surface-variant">Upcoming CC Bills</p>
+            <p className="text-[13px] font-medium text-m3-on-surface-variant">Upcoming CC Bills</p>
             <ReceiptText className="w-4 h-4 text-m3-tertiary shrink-0" />
           </div>
           <div>
@@ -146,14 +146,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* 4. Balance After CC Payments (Dominant Focal Anchor Card) */}
         <div
-          className={`rounded-[24px] p-5 flex flex-col justify-between gap-4 border ${
+          className={`rounded-[24px] p-4 sm:p-5 flex flex-col justify-between gap-3.5 border ${
             isShortfall
               ? 'bg-m3-error-container text-m3-on-error-container border-m3-error/25'
               : 'bg-m3-primary-container text-m3-on-primary-container border-m3-primary/15'
           }`}
         >
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium opacity-90">Balance After CC Payments</p>
+            <p className="text-[13px] font-medium opacity-90">Balance After CC Payments</p>
             <Landmark className="w-4 h-4 opacity-80 shrink-0" />
           </div>
           <div>
@@ -176,40 +176,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* First-Time Empty Onboarding */}
       {summary.cardSummaries.length === 0 ? (
-        <section className="rounded-[28px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-8 sm:p-10 text-center max-w-2xl mx-auto">
-          <div className="w-12 h-12 rounded-2xl bg-m3-primary-container text-m3-on-primary-container flex items-center justify-center mx-auto">
-            <CreditCardIcon className="w-6 h-6" />
+        <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-6 sm:p-8 text-center max-w-2xl mx-auto">
+          <div className="w-11 h-11 rounded-2xl bg-m3-primary-container text-m3-on-primary-container flex items-center justify-center mx-auto">
+            <CreditCardIcon className="w-5 h-5" />
           </div>
-          <h2 className="mt-4 text-xl font-semibold text-m3-on-surface">
+          <h2 className="mt-3.5 text-lg font-semibold text-m3-on-surface">
             Track your credit cards and bank balance offline
           </h2>
-          <p className="mt-2 text-sm text-m3-on-surface-variant max-w-md mx-auto leading-relaxed">
+          <p className="mt-1.5 text-[13px] text-m3-on-surface-variant max-w-md mx-auto leading-relaxed">
             Add your credit cards with their billing and payment due dates, enter your bank
             balance, and keep all data stored privately on this device.
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
             <button
               type="button"
               onClick={onAddCard}
-              className="min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
+              className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add First Credit Card</span>
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Add First Card</span>
             </button>
             <button
               type="button"
               onClick={onEditBankBalance}
-              className="min-h-[44px] px-5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
+              className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
             >
-              <Landmark className="w-4 h-4" />
+              <Landmark className="w-4 h-4 shrink-0" />
               <span>Set Bank Balance</span>
             </button>
             <button
               type="button"
               onClick={onLoadSampleData}
-              className="min-h-[44px] px-5 rounded-full border border-m3-outline-variant text-m3-on-surface-variant hover:bg-m3-surface-low text-sm font-medium inline-flex items-center gap-2 transition-colors whitespace-nowrap"
+              className="h-10 px-4 rounded-full bg-m3-surface-high text-m3-on-surface text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 text-m3-primary shrink-0" />
               <span>Load Sample Cards</span>
             </button>
           </div>
@@ -376,7 +376,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenTransactionModal({type: 'spend'})}
-                    className="mt-4 min-h-[44px] px-5 rounded-full bg-m3-primary-container text-m3-on-primary-container text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    className="mt-4 h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add First Spending</span>
@@ -566,7 +566,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                                 statementCycleKey: statement.cycleKey,
                               })
                             }
-                            className="min-h-[38px] px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-xs font-medium hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+                            className="h-9 px-3.5 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
                           >
                             Pay Bill
                           </button>

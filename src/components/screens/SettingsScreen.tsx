@@ -37,9 +37,9 @@ interface SettingsScreenProps {
 }
 
 const THEME_OPTIONS: Array<{value: ThemeMode; label: string; icon: React.ReactNode}> = [
-  {value: 'light', label: 'Light', icon: <Sun className="w-4 h-4" />},
-  {value: 'dark', label: 'Dark', icon: <Moon className="w-4 h-4" />},
-  {value: 'system', label: 'System Default', icon: <Monitor className="w-4 h-4" />},
+  {value: 'light', label: 'Light', icon: <Sun className="w-4 h-4 shrink-0" />},
+  {value: 'dark', label: 'Dark', icon: <Moon className="w-4 h-4 shrink-0" />},
+  {value: 'system', label: 'System', icon: <Monitor className="w-4 h-4 shrink-0" />},
 ];
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -112,18 +112,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
       {/* Appearance & Theme */}
-      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-6 space-y-4">
+      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5 space-y-3.5">
         <div>
-          <h2 className="text-base font-semibold text-m3-on-surface">Appearance</h2>
-          <p className="text-xs text-m3-on-surface-variant">
-            Choose Light Mode, Dark Mode, or match your device theme automatically
+          <h2 className="text-[15px] font-semibold text-m3-on-surface">Appearance</h2>
+          <p className="mt-0.5 text-xs text-m3-on-surface-variant leading-relaxed">
+            Choose Light Mode, Dark Mode, or follow your phone theme
           </p>
         </div>
 
         <div
-          className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60"
+          className="grid grid-cols-3 gap-1.5 p-1 rounded-full bg-m3-surface-low border border-m3-outline-variant/60"
           role="radiogroup"
           aria-label="Theme preference"
         >
@@ -136,14 +136,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 role="radio"
                 aria-checked={active}
                 onClick={() => onUpdateTheme(opt.value)}
-                className={`min-h-[44px] px-3 rounded-xl text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors whitespace-nowrap ${
+                className={`h-10 px-2 rounded-full text-[13px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors min-w-0 ${
                   active
-                    ? 'bg-m3-primary text-m3-on-primary shadow-xs'
+                    ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
                     : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-high/60'
                 }`}
               >
                 {opt.icon}
-                <span>{opt.label}</span>
+                <span className="truncate">{opt.label}</span>
               </button>
             );
           })}
@@ -151,10 +151,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </section>
 
       {/* Bank Account & Currency */}
-      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 divide-y divide-m3-outline-variant/50 overflow-hidden">
-        <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-m3-on-surface">Bank Account</h2>
+      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 divide-y divide-m3-outline-variant/50 overflow-hidden">
+        <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-m3-on-surface">Bank Account</h2>
             <p className="mt-0.5 text-xs text-m3-on-surface-variant">
               {settings.bankName} · Current balance{' '}
               <span className="font-mono tabular-nums font-medium text-m3-on-surface">
@@ -165,16 +165,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <button
             type="button"
             onClick={onEditBankBalance}
-            className="min-h-[44px] px-5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-sm font-medium inline-flex items-center justify-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+            className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap self-start sm:self-auto shrink-0"
           >
-            <Landmark className="w-4 h-4" />
+            <Landmark className="w-4 h-4 shrink-0" />
             <span>Update Balance</span>
           </button>
         </div>
 
-        <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <label htmlFor="currency-select" className="text-base font-semibold text-m3-on-surface">
+        <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div className="min-w-0">
+            <label htmlFor="currency-select" className="text-[15px] font-semibold text-m3-on-surface">
               Display Currency
             </label>
             <p className="mt-0.5 text-xs text-m3-on-surface-variant">
@@ -185,7 +185,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             id="currency-select"
             value={settings.currency}
             onChange={(e) => onUpdateCurrency(e.target.value as CurrencyCode)}
-            className="min-h-[44px] px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-sm text-m3-on-surface focus:border-m3-primary focus:outline-none"
+            className="h-10 px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-[13px] text-m3-on-surface focus:border-m3-primary focus:outline-none max-w-full"
           >
             {CURRENCY_OPTIONS.map((c) => (
               <option key={c.code} value={c.code}>
@@ -197,10 +197,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </section>
 
       {/* Local Backup & Restore (JSON) */}
-      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-m3-on-surface">
+      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5 space-y-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-semibold text-m3-on-surface">
               Local Backup &amp; Restore
             </h2>
             <p className="mt-0.5 text-xs text-m3-on-surface-variant leading-relaxed">
@@ -208,26 +208,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               previously saved backup. No financial data ever leaves your device.
             </p>
           </div>
-          <HardDrive className="w-5 h-5 text-m3-on-surface-variant shrink-0" />
+          <HardDrive className="w-5 h-5 text-m3-on-surface-variant shrink-0 mt-0.5" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+        <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
           <button
             type="button"
             onClick={handleExportJson}
-            className="min-h-[44px] px-5 rounded-full bg-m3-primary text-m3-on-primary text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
+            className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap"
           >
-            <Download className="w-4 h-4" />
-            <span>Export JSON Backup</span>
+            <Download className="w-4 h-4 shrink-0" />
+            <span>Export JSON</span>
           </button>
 
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="min-h-[44px] px-5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-sm font-medium inline-flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
+            className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap"
           >
-            <Upload className="w-4 h-4" />
-            <span>Restore JSON Backup</span>
+            <Upload className="w-4 h-4 shrink-0" />
+            <span>Restore JSON</span>
           </button>
 
           <input
@@ -241,38 +241,37 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
         {importError && <p className="text-xs text-m3-error">{importError}</p>}
 
-        <p className="text-xs text-m3-on-surface-variant pt-2 border-t border-m3-outline-variant/50">
+        <p className="text-xs text-m3-on-surface-variant pt-2.5 border-t border-m3-outline-variant/50">
           Stored locally in IndexedDB · {cards.length} {cards.length === 1 ? 'card' : 'cards'} ·{' '}
           {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
         </p>
       </section>
 
       {/* Data Utilities */}
-      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/60 p-6 space-y-4">
+      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5 space-y-3.5">
         <div>
-          <h2 className="text-base font-semibold text-m3-on-surface">Device &amp; Data Tools</h2>
+          <h2 className="text-[15px] font-semibold text-m3-on-surface">Device &amp; Data Tools</h2>
           <p className="mt-0.5 text-xs text-m3-on-surface-variant">
             Load sample cards or reset your local device ledger
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={handleSampleAction}
-            className="min-h-[44px] px-5 rounded-full border border-m3-outline-variant text-m3-on-surface text-sm font-medium inline-flex items-center gap-2 hover:bg-m3-surface-low transition-colors whitespace-nowrap"
+            className="h-10 px-4 rounded-full bg-m3-surface-high text-m3-on-surface text-[13px] font-medium inline-flex items-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap"
           >
-            <Sparkles className="w-4 h-4 text-m3-primary" />
+            <Sparkles className="w-4 h-4 text-m3-primary shrink-0" />
             <span>Load Sample Data</span>
           </button>
 
           <button
             type="button"
             onClick={() => setConfirmClearOpen(true)}
-            className="min-h-[44px] px-5 rounded-full border border-m3-error/40 text-m3-error text-sm font-medium inline-flex items-center gap-2 hover:bg-m3-error-container/50 transition-colors whitespace-nowrap"
+            className="h-10 px-4 rounded-full border border-m3-error/45 text-m3-error text-[13px] font-medium inline-flex items-center gap-2 hover:bg-m3-error-container/50 active:scale-[0.98] transition-all whitespace-nowrap"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 shrink-0" />
             <span>Clear All Data</span>
           </button>
         </div>
