@@ -1,5 +1,5 @@
 
-name: Build CardLedger Android APK
+name: Build and Release CardLedger Android APK
 
 on:
   workflow_dispatch:
@@ -29,66 +29,51 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
-      - name: Build web bundle for Android
+      - name: Build application bundle
         run: bun run build
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
 
-      - name: Ensure valid Android resource directory names
+      - name: Fix Android resource directory names
         run: |
           for bad_dir in android/app/src/main/res/drawable-night-land-* android/app/src/main/res/drawable-night-port-*; do
             [ -d "$bad_dir" ] || continue
+
             base=$(basename "$bad_dir")
             fixed=$(echo "$base" | sed -E 's/^drawable-night-(land|port)-/drawable-\1-night-/')
             target="android/app/src/main/res/$fixed"
+
             mkdir -p "$target"
             cp -rn "$bad_dir"/. "$target"/ 2>/dev/null || true
             rm -rf "$bad_dir"
           done
 
-      - name: Build Android APK (Release if keystore configured, else Debug)
-        id: build_apk
+      - name: Build Android Debug APK
         working-directory: android
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          CARDLEDGER_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          CARDLEDGER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          CARDLEDGER_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$CARDLEDGER_STORE_PASSWORD" ] && [ -n "$CARDLEDGER_KEY_ALIAS" ] && [ -n "$CARDLEDGER_KEY_PASSWORD" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release.jks
-            export CARDLEDGER_STORE_FILE="$(pwd)/app/release.jks"
-            ./gradlew assembleRelease
-            rm -f app/release.jks
-            echo "apk_path=android/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_OUTPUT"
-            echo "artifact_name=CardLedger-Android-Release-APK" >> "$GITHUB_OUTPUT"
-          else
-            ./gradlew assembleDebug
-            echo "apk_path=android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_OUTPUT"
-            echo "artifact_name=CardLedger-Android-Debug-APK" >> "$GITHUB_OUTPUT"
-          fi
+          ./gradlew assembleDebug
 
-      - name: Verify APK exists
+      - name: Verify APK
         run: |
-          test -f "${{ steps.build_apk.outputs.apk_path }}"
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.build_apk.outputs.artifact_name }}
-          path: ${{ steps.build_apk.outputs.apk_path }}
+          name: CardLedger-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: CardLedger Build ${{ github.run_number }}
-          files: ${{ steps.build_apk.outputs.apk_path }}
+          tag_name: cardledger-${{ github.run_number }}-${{ github.run_attempt }}
+          name: CardLedger Android Build ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
           generate_release_notes: true
+          
