@@ -1,0 +1,6 @@
+{
+  "name": "CardLedger — Offline Credit Card & Bank Tracker",
+  "description": "100% offline personal finance tracker for managing credit card spending, billing cycles, upcoming bills, and bank balances locally on your device.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

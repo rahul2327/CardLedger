@@ -1,0 +1,158 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-m3-surface: var(--m3-surface);
+  --color-m3-surface-lowest: var(--m3-surface-lowest);
+  --color-m3-surface-low: var(--m3-surface-low);
+  --color-m3-surface-container: var(--m3-surface-container);
+  --color-m3-surface-high: var(--m3-surface-high);
+  --color-m3-surface-highest: var(--m3-surface-highest);
+
+  --color-m3-on-surface: var(--m3-on-surface);
+  --color-m3-on-surface-variant: var(--m3-on-surface-variant);
+
+  --color-m3-primary: var(--m3-primary);
+  --color-m3-on-primary: var(--m3-on-primary);
+  --color-m3-primary-container: var(--m3-primary-container);
+  --color-m3-on-primary-container: var(--m3-on-primary-container);
+
+  --color-m3-secondary-container: var(--m3-secondary-container);
+  --color-m3-on-secondary-container: var(--m3-on-secondary-container);
+
+  --color-m3-tertiary: var(--m3-tertiary);
+  --color-m3-tertiary-container: var(--m3-tertiary-container);
+  --color-m3-on-tertiary-container: var(--m3-on-tertiary-container);
+
+  --color-m3-error: var(--m3-error);
+  --color-m3-on-error: var(--m3-on-error);
+  --color-m3-error-container: var(--m3-error-container);
+  --color-m3-on-error-container: var(--m3-on-error-container);
+
+  --color-m3-success: var(--m3-success);
+  --color-m3-success-container: var(--m3-success-container);
+  --color-m3-on-success-container: var(--m3-on-success-container);
+
+  --color-m3-outline: var(--m3-outline);
+  --color-m3-outline-variant: var(--m3-outline-variant);
+}
+
+:root {
+  color-scheme: light;
+  --m3-surface: #F7FAF9;
+  --m3-surface-lowest: #FFFFFF;
+  --m3-surface-low: #F1F6F4;
+  --m3-surface-container: #EAF1EE;
+  --m3-surface-high: #E2EBE8;
+  --m3-surface-highest: #DAE5E1;
+
+  --m3-on-surface: #171D1C;
+  --m3-on-surface-variant: #44504D;
+
+  --m3-primary: #196A5E;
+  --m3-on-primary: #FFFFFF;
+  --m3-primary-container: #C7EBE3;
+  --m3-on-primary-container: #00201C;
+
+  --m3-secondary-container: #D8E8E3;
+  --m3-on-secondary-container: #132C28;
+
+  --m3-tertiary: #8A5A00;
+  --m3-tertiary-container: #F6E4C5;
+  --m3-on-tertiary-container: #2D1B00;
+
+  --m3-error: #BA1A1A;
+  --m3-on-error: #FFFFFF;
+  --m3-error-container: #FFDAD6;
+  --m3-on-error-container: #410002;
+
+  --m3-success: #166B44;
+  --m3-success-container: #CBEFD9;
+  --m3-on-success-container: #002112;
+
+  --m3-outline: #6F7B78;
+  --m3-outline-variant: #D0DBD7;
+}
+
+.dark {
+  color-scheme: dark;
+  --m3-surface: #0F1514;
+  --m3-surface-lowest: #0B100F;
+  --m3-surface-low: #151D1B;
+  --m3-surface-container: #1B2422;
+  --m3-surface-high: #232E2B;
+  --m3-surface-highest: #2B3835;
+
+  --m3-on-surface: #E2EAE7;
+  --m3-on-surface-variant: #B5C3BF;
+
+  --m3-primary: #82D5C5;
+  --m3-on-primary: #003730;
+  --m3-primary-container: #005046;
+  --m3-on-primary-container: #A4F2E2;
+
+  --m3-secondary-container: #263A36;
+  --m3-on-secondary-container: #CFE5DF;
+
+  --m3-tertiary: #E7BF78;
+  --m3-tertiary-container: #4A3612;
+  --m3-on-tertiary-container: #F6E4C5;
+
+  --m3-error: #FFB4AB;
+  --m3-on-error: #690005;
+  --m3-error-container: #93000A;
+  --m3-on-error-container: #FFDAD6;
+
+  --m3-success: #86D9A8;
+  --m3-success-container: #0A4D2F;
+  --m3-on-success-container: #CBEFD9;
+
+  --m3-outline: #899692;
+  --m3-outline-variant: #2D3936;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--m3-surface);
+    color: var(--m3-on-surface);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dark body {
+    letter-spacing: 0.008em;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Smooth Material 3 focus ring */
+:focus-visible {
+  outline: 2px solid var(--m3-primary);
+  outline-offset: 2px;
+}
+
+/* Safe area padding helper for mobile bottom nav */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
