@@ -5,9 +5,12 @@ import type {
   CardColorToken,
   CreditCard,
   CurrencyCode,
+  SpendingCategory,
   ThemeMode,
   Transaction,
 } from '../types/finance';
+import {setCachedBiometricLock} from '../utils/biometricAuth';
+import {VALID_SPENDING_CATEGORIES} from '../utils/categories';
 import {isValidCalendarDate, roundMoney} from '../utils/financeEngine';
 
 const DB_NAME = 'cardledger_offline_db';
@@ -72,6 +75,7 @@ export function createDefaultSettings(): AppSettings {
     ...buildBankSummaryFields([primaryAccount], nowIso),
     currency: 'INR',
     theme: 'dark',
+    biometricLockEnabled: false,
   };
 }
 
@@ -137,6 +141,7 @@ export function normalizeStoredSettings(raw?: Partial<AppSettings> | null): AppS
     ...buildBankSummaryFields(bankAccounts, updatedAt),
     currency,
     theme,
+    biometricLockEnabled: Boolean(raw.biometricLockEnabled),
   };
 }
 
@@ -204,6 +209,7 @@ export async function loadAllLocalData(): Promise<{
     const settings = normalizeStoredSettings(storedSettings);
 
     syncThemeCache(settings.theme);
+    setCachedBiometricLock(Boolean(settings.biometricLockEnabled));
 
     return {
       settings,
@@ -229,6 +235,7 @@ export function syncThemeCache(theme: ThemeMode): void {
 export async function saveSettingsLocal(settings: AppSettings): Promise<void> {
   const normalized = normalizeStoredSettings(settings);
   syncThemeCache(normalized.theme);
+  setCachedBiometricLock(Boolean(normalized.biometricLockEnabled));
   const db = await openDatabase();
   try {
     const tx = db.transaction(STORE_SETTINGS, 'readwrite');
@@ -318,6 +325,7 @@ export async function replaceAllLocalData(data: {
 }): Promise<void> {
   const normalizedSettings = normalizeStoredSettings(data.settings);
   syncThemeCache(normalizedSettings.theme);
+  setCachedBiometricLock(Boolean(normalizedSettings.biometricLockEnabled));
   const db = await openDatabase();
   try {
     const tx = db.transaction([STORE_SETTINGS, STORE_CARDS, STORE_TRANSACTIONS], 'readwrite');
@@ -442,6 +450,7 @@ export function validateBackupPayload(
     ...buildBankSummaryFields(sanitizedAccounts, bankUpdatedAt),
     currency,
     theme,
+    biometricLockEnabled: Boolean(s.biometricLockEnabled),
   };
 
   const cardIds = new Set<string>();
@@ -535,6 +544,12 @@ export function validateBackupPayload(
       type,
       amount: roundMoney(amount),
       description: description ? description.slice(0, 120) : type === 'payment' ? 'Card Payment' : 'Card Spend',
+      category:
+        type === 'spend' &&
+        typeof t.category === 'string' &&
+        VALID_SPENDING_CATEGORIES.includes(t.category as SpendingCategory)
+          ? (t.category as SpendingCategory)
+          : undefined,
       date,
       statementCycleKey:
         typeof t.statementCycleKey === 'string' && isValidCalendarDate(t.statementCycleKey)

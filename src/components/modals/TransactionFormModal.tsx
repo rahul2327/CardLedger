@@ -3,10 +3,16 @@ import type {
   BankAccount,
   CardSummary,
   CurrencyCode,
+  SpendingCategory,
   Transaction,
   TransactionType,
 } from '../../types/finance';
 import type {TransactionInput} from '../../hooks/useFinanceStore';
+import {
+  SPENDING_CATEGORIES,
+  inferSpendingCategory,
+  resolveTransactionCategory,
+} from '../../utils/categories';
 import {getTodayDateString, isValidCalendarDate, roundMoney} from '../../utils/financeEngine';
 import {formatMoney, formatShortDate, getCurrencySymbol} from '../../utils/formatters';
 import {DialogShell} from '../ui/DialogShell';
@@ -44,6 +50,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const [cardId, setCardId] = useState('');
   const [amountInput, setAmountInput] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<SpendingCategory>('other');
+  const [categoryManuallyPicked, setCategoryManuallyPicked] = useState(false);
   const [date, setDate] = useState(getTodayDateString());
   const [statementCycleKey, setStatementCycleKey] = useState<string>('');
   const [deductFromBank, setDeductFromBank] = useState(true);
@@ -60,6 +68,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       setCardId(editingTransaction.cardId);
       setAmountInput(String(editingTransaction.amount));
       setDescription(editingTransaction.description);
+      setCategory(resolveTransactionCategory(editingTransaction));
+      setCategoryManuallyPicked(true);
       setDate(editingTransaction.date);
       setStatementCycleKey(editingTransaction.statementCycleKey ?? '');
       setDeductFromBank(Boolean(editingTransaction.deductFromBank) && bankAccounts.length > 0);
@@ -72,12 +82,14 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     } else {
       const initialType = preset?.type ?? 'spend';
       const defaultCardId = preset?.cardId ?? cardSummaries[0]?.card.id ?? '';
+      const initialDesc =
+        preset?.description ?? (initialType === 'payment' ? 'Credit Card Bill Payment' : '');
       setType(initialType);
       setCardId(defaultCardId);
       setAmountInput(preset?.amount ? String(preset.amount) : '');
-      setDescription(
-        preset?.description ?? (initialType === 'payment' ? 'Credit Card Bill Payment' : '')
-      );
+      setDescription(initialDesc);
+      setCategory(inferSpendingCategory(initialDesc));
+      setCategoryManuallyPicked(false);
       setDate(getTodayDateString());
       setStatementCycleKey(preset?.statementCycleKey ?? '');
       setDeductFromBank(bankAccounts.length > 0);
@@ -183,6 +195,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         type,
         amount: roundMoney(num),
         description: trimmedDesc,
+        category: type === 'spend' ? category : undefined,
         date,
         statementCycleKey: type === 'payment' && statementCycleKey ? statementCycleKey : undefined,
         deductFromBank: type === 'payment' ? shouldDeduct : undefined,
@@ -347,7 +360,11 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
               maxLength={120}
               value={description}
               onChange={(e) => {
-                setDescription(e.target.value);
+                const nextDesc = e.target.value;
+                setDescription(nextDesc);
+                if (type === 'spend' && !categoryManuallyPicked) {
+                  setCategory(inferSpendingCategory(nextDesc));
+                }
                 setError(null);
               }}
               placeholder={
@@ -376,6 +393,41 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
             />
           </div>
         </div>
+
+        {/* Spending Category Picker */}
+        {type === 'spend' && (
+          <div>
+            <p className="block text-sm font-medium text-m3-on-surface mb-2">Category</p>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Spending category">
+              {SPENDING_CATEGORIES.map((cat) => {
+                const active = category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => {
+                      setCategory(cat.id);
+                      setCategoryManuallyPicked(true);
+                    }}
+                    className={`h-8 px-3 rounded-full text-xs font-medium inline-flex items-center gap-1.5 transition-colors border ${
+                      active
+                        ? 'bg-m3-secondary-container text-m3-on-secondary-container border-m3-primary/40'
+                        : 'bg-m3-surface-low text-m3-on-surface-variant border-m3-outline-variant/60 hover:text-m3-on-surface'
+                    }`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{backgroundColor: cat.color}}
+                    />
+                    <span>{cat.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Payment-specific options */}
         {type === 'payment' && (

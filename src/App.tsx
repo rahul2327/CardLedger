@@ -22,10 +22,16 @@ import {CardsScreen} from './components/screens/CardsScreen';
 import {DashboardScreen} from './components/screens/DashboardScreen';
 import {HistoryScreen} from './components/screens/HistoryScreen';
 import {SettingsScreen} from './components/screens/SettingsScreen';
+import {AppLockOverlay} from './components/ui/AppLockOverlay';
 import {ConfirmDialog} from './components/ui/DialogShell';
 import {useFinanceStore} from './hooks/useFinanceStore';
 import {useThemeEffect} from './hooks/useTheme';
 import type {CreditCard, NavTab, ThemeMode, Transaction} from './types/finance';
+import {
+  checkBiometricAvailability,
+  getCachedBiometricLock,
+  promptBiometricAuth,
+} from './utils/biometricAuth';
 import {formatMoney, formatShortDate} from './utils/formatters';
 import {
   hideNativeSplash,
@@ -98,9 +104,145 @@ export default function App() {
   // Material 3 Snackbar
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Native Android Fingerprint Lock state (starts locked on cold launch if enabled)
+  const [isAppLocked, setIsAppLocked] = useState<boolean>(
+    () => isNativeAndroid() && getCachedBiometricLock()
+  );
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+  const isAppLockedRef = useRef<boolean>(isAppLocked);
+  const isAuthenticatingRef = useRef<boolean>(false);
+  const biometricEnabledRef = useRef<boolean>(getCachedBiometricLock());
+  const lastUnlockedAtRef = useRef<number>(0);
+  const backgroundedAtRef = useRef<number | null>(null);
+
   const notify = useCallback((message: string) => {
     setToastMessage(message);
   }, []);
+
+  useEffect(() => {
+    isAppLockedRef.current = isAppLocked;
+  }, [isAppLocked]);
+
+  useEffect(() => {
+    if (!store.isLoading) {
+      const enabled = Boolean(store.settings.biometricLockEnabled);
+      biometricEnabledRef.current = enabled;
+      if (!enabled && isAppLockedRef.current) {
+        setIsAppLocked(false);
+        setLockError(null);
+      }
+    }
+  }, [store.isLoading, store.settings.biometricLockEnabled]);
+
+  const triggerUnlockPrompt = useCallback(async () => {
+    if (!isNativeAndroid() || isAuthenticatingRef.current) return;
+    isAuthenticatingRef.current = true;
+    setIsAuthenticating(true);
+    setLockError(null);
+    try {
+      const result = await promptBiometricAuth(
+        'Unlock CardLedger',
+        'Verify with fingerprint or phone screen lock'
+      );
+      if (result.verified) {
+        lastUnlockedAtRef.current = Date.now();
+        setIsAppLocked(false);
+        setLockError(null);
+      } else {
+        setLockError(result.error ?? 'Verification cancelled. Tap below to try again.');
+      }
+    } finally {
+      isAuthenticatingRef.current = false;
+      setIsAuthenticating(false);
+    }
+  }, []);
+
+  // Automatically show fingerprint prompt on cold launch once app is ready
+  useEffect(() => {
+    if (!store.isLoading && isAppLocked && isNativeAndroid()) {
+      void triggerUnlockPrompt();
+    }
+  }, [store.isLoading, isAppLocked, triggerUnlockPrompt]);
+
+  // Re-lock automatically when app returns from background (ignoring transient OS dialogs)
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    let disposed = false;
+    let handle: {remove: () => Promise<void>} | null = null;
+
+    CapApp.addListener('appStateChange', ({isActive}) => {
+      if (!biometricEnabledRef.current) return;
+      if (!isActive) {
+        if (!isAuthenticatingRef.current) {
+          backgroundedAtRef.current = Date.now();
+        }
+        return;
+      }
+
+      const bgAt = backgroundedAtRef.current;
+      backgroundedAtRef.current = null;
+      const recentlyUnlocked = Date.now() - lastUnlockedAtRef.current < 2500;
+      const awayMs = bgAt ? Date.now() - bgAt : 0;
+
+      if (!isAuthenticatingRef.current && !recentlyUnlocked && awayMs >= 1500) {
+        setIsAppLocked(true);
+        setLockError(null);
+      }
+    })
+      .then((h) => {
+        if (disposed) {
+          void h.remove();
+        } else {
+          handle = h;
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      if (handle) {
+        void handle.remove();
+      }
+    };
+  }, []);
+
+  const handleToggleBiometricLock = useCallback(
+    async (nextEnabled: boolean) => {
+      if (!isNativeAndroid()) {
+        notify('Fingerprint lock works in the installed Android app.');
+        return;
+      }
+
+      if (nextEnabled) {
+        const available = await checkBiometricAvailability();
+        if (!available) {
+          notify('Set up a fingerprint or screen lock in Android Settings first.');
+          return;
+        }
+      }
+
+      isAuthenticatingRef.current = true;
+      try {
+        const result = await promptBiometricAuth(
+          nextEnabled ? 'Enable Fingerprint Lock' : 'Disable Fingerprint Lock',
+          nextEnabled
+            ? 'Confirm your fingerprint or screen lock to protect CardLedger'
+            : 'Verify your identity to turn off Fingerprint Lock'
+        );
+        if (!result.verified) {
+          notify(result.error ?? 'Fingerprint verification cancelled.');
+          return;
+        }
+        lastUnlockedAtRef.current = Date.now();
+        await store.updateBiometricLock(nextEnabled);
+        notify(nextEnabled ? 'Fingerprint lock enabled.' : 'Fingerprint lock turned off.');
+      } finally {
+        isAuthenticatingRef.current = false;
+      }
+    },
+    [notify, store]
+  );
 
   const navigateToTab = useCallback((nextTab: NavTab) => {
     setActiveTab((prev) => {
@@ -135,6 +277,12 @@ export default function App() {
     let listenerHandle: {remove: () => Promise<void>} | null = null;
 
     CapApp.addListener('backButton', () => {
+      // 0. Never allow back button to bypass the Fingerprint Lock screen
+      if (isAppLockedRef.current) {
+        void CapApp.exitApp();
+        return;
+      }
+
       // 1. If any Material 3 dialog is open, dismiss it via Escape handler
       if (document.querySelector('[role="dialog"]')) {
         window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
@@ -449,6 +597,7 @@ export default function App() {
                   settings={store.settings}
                   summary={store.summary}
                   transactions={store.transactions}
+                  todayDate={store.todayDate}
                   onNavigate={navigateToTab}
                   onSelectCardDetail={handleSelectCardDetail}
                   onEditBankBalance={() => setBankModalOpen(true)}
@@ -519,6 +668,7 @@ export default function App() {
                     await store.updateCurrency(currency);
                     notify(`Currency updated to ${currency}.`);
                   }}
+                  onToggleBiometricLock={handleToggleBiometricLock}
                   onEditBankBalance={() => setBankModalOpen(true)}
                   onRestoreBackup={store.restoreBackup}
                   onLoadSampleData={store.loadSampleData}
@@ -712,6 +862,15 @@ export default function App() {
         checkboxChecked={refundBankOnDelete}
         onCheckboxChange={setRefundBankOnDelete}
       />
+
+      {/* Native Android Fingerprint Lock Screen */}
+      {isAppLocked && (
+        <AppLockOverlay
+          authenticating={isAuthenticating}
+          error={lockError}
+          onUnlock={() => void triggerUnlockPrompt()}
+        />
+      )}
     </div>
   );
 }

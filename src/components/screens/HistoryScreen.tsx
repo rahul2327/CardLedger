@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type {BankAccount, CreditCard, CurrencyCode, Transaction} from '../../types/finance';
+import {getCategoryLabel, resolveTransactionCategory} from '../../utils/categories';
 import {
   getCycleWindowForTransactionDate,
   roundMoney,
@@ -71,10 +72,15 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         const bankName = tx.bankAccountId
           ? bankById.get(tx.bankAccountId)?.name.toLowerCase() ?? ''
           : '';
+        const categoryName =
+          tx.type === 'spend'
+            ? getCategoryLabel(resolveTransactionCategory(tx)).toLowerCase()
+            : '';
         const matchesDesc = tx.description.toLowerCase().includes(query);
         const matchesCard = cardName.includes(query);
         const matchesBank = bankName.includes(query);
-        if (!matchesDesc && !matchesCard && !matchesBank) return false;
+        const matchesCategory = categoryName.includes(query);
+        if (!matchesDesc && !matchesCard && !matchesBank && !matchesCategory) return false;
       }
       return true;
     });
@@ -327,9 +333,9 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                               ? ` · Paid via ${bankById.get(tx.bankAccountId)!.name}`
                               : ' · Payment (Bank deducted)'
                             : ' · Payment'
-                          : cycleLabel
-                            ? ` · ${cycleLabel}`
-                            : ''}
+                          : ` · ${getCategoryLabel(resolveTransactionCategory(tx))}${
+                              cycleLabel ? ` · ${cycleLabel}` : ''
+                            }`}
                       </p>
                     </div>
                   </div>

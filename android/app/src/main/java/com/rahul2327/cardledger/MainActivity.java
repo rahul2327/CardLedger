@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(BiometricAuthPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Handle Android 15/16 (API 35/36) edge-to-edge insets cleanly so the WebView

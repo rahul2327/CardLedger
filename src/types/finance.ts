@@ -6,6 +6,16 @@ export type CardColorToken = 'teal' | 'indigo' | 'emerald' | 'amber' | 'rose' | 
 
 export type TransactionType = 'spend' | 'payment';
 
+export type SpendingCategory =
+  | 'food'
+  | 'shopping'
+  | 'bills'
+  | 'travel'
+  | 'fuel'
+  | 'health'
+  | 'entertainment'
+  | 'other';
+
 export type PaymentStatus = 'paid' | 'partially_paid' | 'unpaid' | 'overdue' | 'no_bill';
 
 export type NavTab = 'dashboard' | 'cards' | 'bills' | 'history' | 'settings';
@@ -25,6 +35,7 @@ export interface AppSettings {
   bankAccounts: BankAccount[];
   currency: CurrencyCode;
   theme: ThemeMode;
+  biometricLockEnabled?: boolean;
 }
 
 export interface CreditCard {
@@ -44,6 +55,7 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   description: string;
+  category?: SpendingCategory;
   date: string; // YYYY-MM-DD local date
   statementCycleKey?: string;
   deductFromBank?: boolean;

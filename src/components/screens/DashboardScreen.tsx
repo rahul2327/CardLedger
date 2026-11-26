@@ -31,12 +31,15 @@ import {
   formatPaymentStatusLabel,
   formatShortDate,
 } from '../../utils/formatters';
+import {getCategoryLabel, resolveTransactionCategory} from '../../utils/categories';
+import {SpendingAnalyticsSection} from '../charts/SpendingAnalyticsSection';
 import type {TransactionModalPreset} from '../modals/TransactionFormModal';
 
 interface DashboardScreenProps {
   settings: AppSettings;
   summary: DashboardSummary;
   transactions: Transaction[];
+  todayDate: string;
   onNavigate: (tab: NavTab) => void;
   onSelectCardDetail: (cardId: string) => void;
   onEditBankBalance: () => void;
@@ -51,6 +54,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   settings,
   summary,
   transactions,
+  todayDate,
   onNavigate,
   onSelectCardDetail,
   onEditBankBalance,
@@ -242,7 +246,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </div>
         </section>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="space-y-6">
+          {/* Interactive Category Charts & Monthly Spend Graphs */}
+          <SpendingAnalyticsSection
+            cards={summary.cardSummaries.map((cs) => cs.card)}
+            transactions={transactions}
+            currency={currency}
+            theme={settings.theme}
+            todayDate={todayDate}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: Credit Cards Overview & Recent Transactions */}
           <div className="lg:col-span-7 space-y-6">
             {/* Credit Cards Overview */}
@@ -447,7 +461,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                                         ?.name ?? 'Bank'
                                     }`
                                   : 'Payment'
-                                : 'Spend'}
+                                : getCategoryLabel(resolveTransactionCategory(tx))}
                             </p>
                           </div>
                         </div>
@@ -650,6 +664,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </div>
             </section>
           </div>
+        </div>
         </div>
       )}
     </div>

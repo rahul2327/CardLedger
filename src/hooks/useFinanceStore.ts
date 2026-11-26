@@ -18,10 +18,12 @@ import type {
   CardColorToken,
   CreditCard,
   CurrencyCode,
+  SpendingCategory,
   ThemeMode,
   Transaction,
   TransactionType,
 } from '../types/finance';
+import {inferSpendingCategory} from '../utils/categories';
 import {computeDashboardSummary, getTodayDateString, roundMoney} from '../utils/financeEngine';
 import {createSampleDataset} from '../utils/sampleData';
 
@@ -54,6 +56,7 @@ export interface TransactionInput {
   type: TransactionType;
   amount: number;
   description: string;
+  category?: SpendingCategory;
   date: string;
   statementCycleKey?: string;
   deductFromBank?: boolean;
@@ -200,6 +203,15 @@ export function useFinanceStore() {
     [commitSettings]
   );
 
+  const updateBiometricLock = useCallback(
+    async (biometricLockEnabled: boolean) => {
+      const next: AppSettings = {...settingsRef.current, biometricLockEnabled};
+      await saveSettingsLocal(next);
+      commitSettings(next);
+    },
+    [commitSettings]
+  );
+
   const saveCard = useCallback(
     async (input: CardInput): Promise<CreditCard> => {
       const currentCards = cardsRef.current;
@@ -253,12 +265,17 @@ export function useFinanceStore() {
         : undefined;
       const effectiveDeductFromBank = Boolean(wantsBankDeduction && resolvedBankAccountId);
 
+      const trimmedDescription = input.description.trim();
       const record: Transaction = {
         id: existing ? existing.id : generateId('tx'),
         cardId: input.cardId,
         type: input.type,
         amount,
-        description: input.description.trim(),
+        description: trimmedDescription,
+        category:
+          input.type === 'spend'
+            ? input.category ?? inferSpendingCategory(trimmedDescription)
+            : undefined,
         date: input.date,
         statementCycleKey:
           input.type === 'payment' && input.statementCycleKey
@@ -409,6 +426,7 @@ export function useFinanceStore() {
     deleteBankAccount,
     updateTheme,
     updateCurrency,
+    updateBiometricLock,
     saveCard,
     deleteCard,
     saveTransaction,

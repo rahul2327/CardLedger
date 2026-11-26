@@ -1,6 +1,7 @@
 import React, {useRef, useState} from 'react';
 import {
   Download,
+  Fingerprint,
   HardDrive,
   Landmark,
   Monitor,
@@ -21,6 +22,7 @@ import type {
 } from '../../types/finance';
 import {getTodayDateString} from '../../utils/financeEngine';
 import {CURRENCY_OPTIONS, formatMoney} from '../../utils/formatters';
+import {isNativeAndroid} from '../../utils/nativeAndroid';
 import {ConfirmDialog} from '../ui/DialogShell';
 
 interface SettingsScreenProps {
@@ -29,6 +31,7 @@ interface SettingsScreenProps {
   transactions: Transaction[];
   onUpdateTheme: (theme: ThemeMode) => Promise<void>;
   onUpdateCurrency: (currency: CurrencyCode) => Promise<void>;
+  onToggleBiometricLock: (nextEnabled: boolean) => Promise<void>;
   onEditBankBalance: () => void;
   onRestoreBackup: (payload: BackupPayload) => Promise<void>;
   onLoadSampleData: () => Promise<void>;
@@ -48,6 +51,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   transactions,
   onUpdateTheme,
   onUpdateCurrency,
+  onToggleBiometricLock,
   onEditBankBalance,
   onRestoreBackup,
   onLoadSampleData,
@@ -59,6 +63,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [pendingRestore, setPendingRestore] = useState<BackupPayload | null>(null);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [confirmSampleOpen, setConfirmSampleOpen] = useState(false);
+  const [togglingLock, setTogglingLock] = useState(false);
+  const nativeAndroid = isNativeAndroid();
+  const biometricEnabled = Boolean(settings.biometricLockEnabled);
 
   const handleExportJson = () => {
     const payload = buildBackupPayload(settings, cards, transactions);
@@ -147,6 +154,54 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* Security & Fingerprint Lock */}
+      <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-m3-secondary-container text-m3-on-secondary-container flex items-center justify-center shrink-0 mt-0.5">
+              <Fingerprint className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-semibold text-m3-on-surface">Fingerprint Lock</h2>
+              <p className="mt-0.5 text-xs text-m3-on-surface-variant leading-relaxed">
+                {nativeAndroid
+                  ? 'Require fingerprint or phone screen lock whenever you open CardLedger'
+                  : 'Require fingerprint or screen lock on your Android device'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={biometricEnabled}
+            aria-label="Toggle fingerprint lock"
+            disabled={togglingLock}
+            onClick={async () => {
+              setTogglingLock(true);
+              try {
+                await onToggleBiometricLock(!biometricEnabled);
+              } finally {
+                setTogglingLock(false);
+              }
+            }}
+            className={`relative inline-flex h-8 w-[52px] shrink-0 items-center rounded-full border transition-colors focus:outline-none disabled:opacity-60 ${
+              biometricEnabled
+                ? 'bg-m3-primary border-m3-primary'
+                : 'bg-m3-surface-high border-m3-outline'
+            }`}
+          >
+            <span
+              className={`inline-block rounded-full transition-transform ${
+                biometricEnabled
+                  ? 'h-6 w-6 translate-x-6 bg-m3-on-primary'
+                  : 'h-4 w-4 translate-x-1.5 bg-m3-on-surface-variant'
+              }`}
+            />
+          </button>
         </div>
       </section>
 
