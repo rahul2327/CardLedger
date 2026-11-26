@@ -1,170 +1,143 @@
 # CardLedger
 
-**A simple, offline-first personal finance tracker for managing credit cards, expenses, bills, and bank balances.**
+**An offline-first Android personal finance application for tracking credit cards, billing cycles, spending categories, and multiple bank accounts privately on your phone.**
 
-CardLedger helps you keep track of your credit card spending, billing cycles, upcoming payments, and available bank balances, all in one place.
+CardLedger is maintained and distributed exclusively as a native **Android APK** (`com.rahul2327.cardledger`). It runs 100% offline with local IndexedDB storage—no account sign-up, no servers, and no cloud sync.
 
-Designed with simplicity and privacy in mind, CardLedger stores your financial data locally on your device. No account registration or cloud connection is required.
+---
 
-## ✨ Features
+## Features
 
-### 💳 Credit Card Management
-- Add and manage multiple credit cards.
-- Set card names and optional credit limits.
-- Configure billing cycle and payment due dates.
-- Track spending for individual cards.
-- Record credit card bill payments.
+### Credit Card & Billing Cycle Management
+- Add and manage multiple credit cards with optional credit limits, billing dates, and payment due dates.
+- Separate **billed statements** from **current unbilled cycle** spending automatically.
+- Track unpaid, partially paid, paid, and overdue statements with due-date countdowns.
+- Record full or partial credit card bill payments, with automatic FIFO statement allocation or manual statement selection.
 
-### 💰 Expense Tracking
-- Add transactions manually.
-- Include transaction descriptions, amounts, and dates.
-- Edit or delete existing transactions.
-- Track spending across different credit cards.
-- View transaction history.
+### Multiple Bank Accounts
+- Add, edit, and remove multiple bank accounts (e.g., Savings, Salary, Reserve).
+- Automatically compute your combined bank balance and **Balance After CC Payments**.
+- Deduct credit card payments directly from a chosen bank account, and automatically refund the exact same account if a payment is edited or deleted.
 
-### 📅 Billing Cycle Management
-- Track statement and unbilled transactions separately.
-- Monitor current billing cycle spending.
-- Keep track of upcoming payment due dates.
-- Record payments against credit card bills.
+### Spending Categories, Charts & Graphs
+- Organize card expenses across 8 categories (Food & Dining, Shopping, Bills & Utilities, Travel & Transit, Fuel & Auto, Health & Wellness, Entertainment, Other) with automatic category detection.
+- Interactive **Category Donut Chart** and ranked category breakdown on the Dashboard.
+- Monthly **Spend vs. Paid** bar graph and per-card spending comparison with `This Month`, `3M`, `6M`, and `All` timeframe filters.
+- Search and filter full transaction history by card, type, date range, bank account, or category.
 
-### 🏦 Bank Balance Tracking
-- Maintain bank account balances manually.
-- Update balances whenever required.
-- Track your available balance alongside credit card obligations.
+### Privacy, Offline Storage & Fingerprint Lock
+- Works completely offline from first launch—all UI assets and fonts are bundled directly inside the APK.
+- Optional **Fingerprint Lock** (Android native `BiometricPrompt`, with device PIN/pattern fallback) to lock CardLedger on startup and when returning from the background.
+- Local **JSON Backup & Restore** to keep portable offline copies of your ledger.
+- Light, Dark, and System themes inspired by Material You.
 
-### 📊 Dashboard
-- View your overall financial overview.
-- Monitor credit card spending.
-- Check upcoming bills and payment due dates.
-- Keep track of your bank balances.
+---
 
-### 🔒 Privacy & Data Management
-- Works offline.
-- Stores data locally using IndexedDB.
-- No mandatory account registration.
-- No cloud synchronization.
-- Export your data as a JSON backup.
-- Restore your data from a previous backup.
+## Android Application Architecture
 
-### 🎨 User Interface
-- Material Design 3-inspired interface.
-- Light theme.
-- Dark theme.
-- System theme preference.
-- Responsive design.
+CardLedger uses **React 19**, **TypeScript**, **Tailwind CSS**, and **Vite** internally to produce a local static bundle (`dist/`), which **Capacitor** packages directly inside a native Android Gradle project (`android/`).
 
-## 🛠️ Built With
+- **Distribution target:** Android APK only (`com.rahul2327.cardledger`). CardLedger is maintained and distributed exclusively as a native Android application package.
+- **Asset loading:** Capacitor serves bundled files locally inside the Android WebView (`https://localhost`) with zero external network requests.
+- **Native integrations:** Android status bar & edge-to-edge inset handling, splash screen, keyboard resizing, hardware back navigation, and native AndroidX `BiometricPrompt` fingerprint authentication.
+- **Package manager:** [Bun](https://bun.sh/).
 
-- React 19
-- TypeScript
-- Vite
-- Capacitor
-- IndexedDB
-- Material Design 3
-- Progressive Web App (PWA)
+---
 
-## 📱 Android App
+## Offline-First Functionality, Local Storage & Privacy
 
-CardLedger can be packaged as a native Android application using Capacitor.
+All financial data stays exclusively on your Android device:
 
-Android APK builds are automated through GitHub Actions.
+- **Database:** Local **IndexedDB** (`cardledger_offline_db`) stores your bank accounts, credit cards, transactions, categories, and settings.
+- **Zero telemetry or cloud sync:** CardLedger never transmits financial data to external servers and does not require login credentials.
+- **Update safety:** Updating CardLedger with an APK signed by the same release key preserves all IndexedDB data across updates.
 
-### Download
+### JSON Backup & Restore
 
-Visit the repository's [Releases](https://github.com/rahul2327/CardLedger/releases) page to find available builds.
+Because your data is stored only on your device, clearing app storage, uninstalling CardLedger, or switching phones will erase local data unless you keep a backup:
 
-> Development builds may be debug-signed and are intended for testing.
+1. Open **Settings → Local Backup & Restore**.
+2. Tap **Export JSON** to save a complete local backup file containing your bank accounts, credit cards, transactions, and preferences.
+3. Tap **Restore JSON** on any CardLedger installation to validate and restore a previously exported backup (both v1 and v2 backup formats are supported).
 
-## 🚀 Run Locally
+---
+
+## Download Android APK from GitHub
+
+Automated Android APK builds are produced via GitHub Actions (`.github/workflows/android-apk.yml`):
+
+1. Visit the repository's [Releases](https://github.com/rahul2327/CardLedger/releases) page (or the latest run under the **Actions** tab).
+2. Download the attached `.apk` file onto your Android device.
+3. Open the APK to install CardLedger (enable **Install unknown apps** for your browser or file manager if prompted).
+
+### Debug APK Limitations & Release Signing
+
+- If release keystore secrets are not configured in GitHub Actions, the workflow builds a **debug-signed APK** (`app-debug.apk`).
+- Each CI runner generates a fresh temporary debug key, meaning:
+  - Android will not allow installing a newer debug APK directly over an older one—you must export a JSON backup first, uninstall the old build, install the new build, and restore your JSON backup.
+  - **Google Play Protect** may display a warning for unrecognized/debug-signed sideloaded APKs.
+- To build a consistently signed **release APK** (`app-release.apk`) in GitHub Actions so updates install in-place without losing local data, add these four repository secrets under **Settings → Secrets and variables → Actions**:
+  - `ANDROID_KEYSTORE_BASE64`
+  - `ANDROID_KEYSTORE_PASSWORD`
+  - `ANDROID_KEY_ALIAS`
+  - `ANDROID_KEY_PASSWORD`
+
+---
+
+## Build the Android APK Locally
 
 ### Prerequisites
 
 - [Bun](https://bun.sh/)
+- Java Development Kit (JDK 21)
+- Android SDK / Android Studio
 - Git
 
-### Installation
-
-Clone the repository:
+### 1. Clone and install dependencies
 
 ```bash
 git clone https://github.com/rahul2327/CardLedger.git
-```
-
-Navigate to the project directory:
-
-```bash
 cd CardLedger
-```
-
-Install dependencies:
-
-```bash
 bun install
 ```
 
-Start the development server:
-
-```bash
-bun run dev
-```
-
-### Build for Production
+### 2. Build the bundled assets and sync Capacitor
 
 ```bash
 bun run build
-```
-
-The production build will be generated in the `dist` directory.
-
-## 🤖 Build Android APK
-
-The Android application uses Capacitor.
-
-Sync the web application with the Android project:
-
-```bash
 bunx cap sync android
 ```
 
-Build a debug APK:
+### 3. Build the Android APK
+
+**Debug APK:**
 
 ```bash
 cd android
 ./gradlew assembleDebug
 ```
 
-The generated APK will be available at:
+Output: `android/app/build/outputs/apk/debug/app-debug.apk`
 
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
+**Signed Release APK:**
+
+Provide your keystore via `android/keystore.properties` or the environment variables `CARDLEDGER_STORE_FILE`, `CARDLEDGER_STORE_PASSWORD`, `CARDLEDGER_KEY_ALIAS`, and `CARDLEDGER_KEY_PASSWORD`, then run:
+
+```bash
+cd android
+./gradlew assembleRelease
 ```
 
-Alternatively, use the repository's GitHub Actions workflow to build the APK in the cloud.
+Output: `android/app/build/outputs/apk/release/app-release.apk`
 
-## 🔐 Data & Privacy
+You can also open the native project directly in Android Studio with:
 
-CardLedger is designed to keep your financial information under your control.
-
-- Financial data is stored locally on your device.
-- No account is required.
-- No cloud database is required.
-- JSON backups allow you to export and restore your data.
-
-**Important:** Clearing application data or uninstalling the app may result in loss of locally stored information. Export regular backups and keep them somewhere safe.
-
-## 📌 Project Goals
-
-CardLedger aims to make personal credit card management easier by bringing spending, billing cycles, payment tracking, and bank balances together in one simple application.
-
-The goal is to provide a lightweight, privacy-focused alternative to complicated personal finance tools.
-
-## 📄 License
-
-CardLedger is licensed under the GNU General Public License v2.0.
-
-See the [LICENSE](LICENSE) file for details.
+```bash
+bun run cap:open:android
+```
 
 ---
 
-**CardLedger**: Take control of your cards. Track your money. Stay organized.
+## License
+
+CardLedger is licensed under the GNU General Public License v2.0. See the [LICENSE](LICENSE) file for details.
