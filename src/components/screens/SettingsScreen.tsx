@@ -150,26 +150,49 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
       </section>
 
-      {/* Bank Account & Currency */}
+      {/* Bank Accounts & Currency */}
       <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 divide-y divide-m3-outline-variant/50 overflow-hidden">
-        <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold text-m3-on-surface">Bank Account</h2>
-            <p className="mt-0.5 text-xs text-m3-on-surface-variant">
-              {settings.bankName} · Current balance{' '}
-              <span className="font-mono tabular-nums font-medium text-m3-on-surface">
-                {formatMoney(settings.bankBalance, settings.currency)}
-              </span>
-            </p>
+        <div className="p-5 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-semibold text-m3-on-surface">Bank Accounts</h2>
+              <p className="mt-0.5 text-xs text-m3-on-surface-variant">
+                {settings.bankAccounts.length}{' '}
+                {settings.bankAccounts.length === 1 ? 'account' : 'accounts'} · Combined balance{' '}
+                <span className="font-mono tabular-nums font-medium text-m3-on-surface">
+                  {formatMoney(settings.bankBalance, settings.currency)}
+                </span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onEditBankBalance}
+              className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap self-start sm:self-auto shrink-0"
+            >
+              <Landmark className="w-4 h-4 shrink-0" />
+              <span>Manage Accounts</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onEditBankBalance}
-            className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap self-start sm:self-auto shrink-0"
-          >
-            <Landmark className="w-4 h-4 shrink-0" />
-            <span>Update Balance</span>
-          </button>
+
+          {settings.bankAccounts.length > 0 && (
+            <div className="rounded-2xl bg-m3-surface-low border border-m3-outline-variant/50 divide-y divide-m3-outline-variant/40 overflow-hidden">
+              {settings.bankAccounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="font-medium text-m3-on-surface truncate">{acc.name}</span>
+                  <span
+                    className={`font-mono tabular-nums font-semibold shrink-0 ${
+                      acc.balance < 0 ? 'text-m3-error' : 'text-m3-on-surface'
+                    }`}
+                  >
+                    {formatMoney(acc.balance, settings.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
@@ -242,8 +265,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {importError && <p className="text-xs text-m3-error">{importError}</p>}
 
         <p className="text-xs text-m3-on-surface-variant pt-2.5 border-t border-m3-outline-variant/50">
-          Stored locally in IndexedDB · {cards.length} {cards.length === 1 ? 'card' : 'cards'} ·{' '}
-          {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
+          Stored locally in IndexedDB · {settings.bankAccounts.length}{' '}
+          {settings.bankAccounts.length === 1 ? 'bank account' : 'bank accounts'} · {cards.length}{' '}
+          {cards.length === 1 ? 'card' : 'cards'} · {transactions.length}{' '}
+          {transactions.length === 1 ? 'transaction' : 'transactions'}
         </p>
       </section>
 

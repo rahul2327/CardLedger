@@ -229,8 +229,22 @@ export function createSampleDataset(currentTheme: AppSettings['theme']): {
   const settings: AppSettings = {
     id: 'app-settings',
     bankBalance: 86500,
-    bankName: 'HDFC Savings Account',
+    bankName: '2 Bank Accounts',
     bankUpdatedAt: nowIso,
+    bankAccounts: [
+      {
+        id: 'bank-hdfc-savings',
+        name: 'HDFC Savings',
+        balance: 62500,
+        updatedAt: nowIso,
+      },
+      {
+        id: 'bank-sbi-salary',
+        name: 'SBI Salary',
+        balance: 24000,
+        updatedAt: nowIso,
+      },
+    ],
     currency: 'INR',
     theme: currentTheme,
   };

@@ -49,21 +49,38 @@ jobs:
             rm -rf "$bad_dir"
           done
 
-      - name: Build debug APK
+      - name: Build Android APK (Release if keystore configured, else Debug)
+        id: build_apk
         working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          CARDLEDGER_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CARDLEDGER_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CARDLEDGER_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$CARDLEDGER_STORE_PASSWORD" ] && [ -n "$CARDLEDGER_KEY_ALIAS" ] && [ -n "$CARDLEDGER_KEY_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release.jks
+            export CARDLEDGER_STORE_FILE="$(pwd)/app/release.jks"
+            ./gradlew assembleRelease
+            rm -f app/release.jks
+            echo "apk_path=android/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=CardLedger-Android-Release-APK" >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew assembleDebug
+            echo "apk_path=android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=CardLedger-Android-Debug-APK" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Verify APK exists
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "${{ steps.build_apk.outputs.apk_path }}"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CardLedger-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: ${{ steps.build_apk.outputs.artifact_name }}
+          path: ${{ steps.build_apk.outputs.apk_path }}
           if-no-files-found: error
           retention-days: 30
 
@@ -73,5 +90,5 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: CardLedger Build ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: ${{ steps.build_apk.outputs.apk_path }}
           generate_release_notes: true

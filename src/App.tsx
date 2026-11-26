@@ -492,6 +492,7 @@ export default function App() {
               {activeTab === 'history' && (
                 <HistoryScreen
                   cards={store.cards}
+                  bankAccounts={store.settings.bankAccounts}
                   transactions={store.transactions}
                   currency={store.settings.currency}
                   todayDate={store.todayDate}
@@ -597,17 +598,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Bank Balance Dialog */}
+      {/* Bank Accounts Manager Dialog */}
       <BankBalanceModal
         open={bankModalOpen}
         onClose={() => setBankModalOpen(false)}
-        currentBalance={store.settings.bankBalance}
-        currentBankName={store.settings.bankName}
+        bankAccounts={store.settings.bankAccounts}
         totalCCOutstanding={store.summary.totalCCOutstanding}
         currency={store.settings.currency}
-        onSave={async (balance, bankName) => {
-          await store.updateBankBalance(balance, bankName);
-          notify('Bank balance updated.');
+        onSaveAccount={async (input) => {
+          const saved = await store.saveBankAccount(input);
+          notify(input.id ? `Updated ${saved.name}.` : `Added ${saved.name}.`);
+        }}
+        onDeleteAccount={async (accountId) => {
+          const removed = store.settings.bankAccounts.find((a) => a.id === accountId);
+          await store.deleteBankAccount(accountId);
+          notify(removed ? `Removed ${removed.name}.` : 'Bank account removed.');
         }}
       />
 
@@ -639,7 +644,7 @@ export default function App() {
           setTxPreset(null);
         }}
         cardSummaries={store.summary.cardSummaries}
-        bankBalance={store.settings.bankBalance}
+        bankAccounts={store.settings.bankAccounts}
         currency={store.settings.currency}
         editingTransaction={editingTx}
         preset={txPreset}
@@ -694,11 +699,16 @@ export default function App() {
         }
         confirmLabel="Delete"
         destructive={true}
-        checkboxLabel={
-          txToDelete && txToDelete.type === 'payment' && txToDelete.deductFromBank
-            ? `Refund ${formatMoney(txToDelete.amount, store.settings.currency)} back to bank balance`
-            : undefined
-        }
+        checkboxLabel={(() => {
+          if (!txToDelete || txToDelete.type !== 'payment' || !txToDelete.deductFromBank) {
+            return undefined;
+          }
+          const refundAccount = txToDelete.bankAccountId
+            ? store.settings.bankAccounts.find((a) => a.id === txToDelete.bankAccountId)
+            : store.settings.bankAccounts[0];
+          if (!refundAccount) return undefined;
+          return `Refund ${formatMoney(txToDelete.amount, store.settings.currency)} back to ${refundAccount.name}`;
+        })()}
         checkboxChecked={refundBankOnDelete}
         onCheckboxChange={setRefundBankOnDelete}
       />

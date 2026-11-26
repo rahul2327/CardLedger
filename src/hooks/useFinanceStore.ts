@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   DEFAULT_SETTINGS,
+  buildBankSummaryFields,
+  createDefaultSettings,
   deleteCardAndTransactionsLocal,
   deleteTransactionLocal,
   loadAllLocalData,
@@ -12,6 +14,7 @@ import {
 import type {
   AppSettings,
   BackupPayload,
+  BankAccount,
   CardColorToken,
   CreditCard,
   CurrencyCode,
@@ -27,6 +30,12 @@ function generateId(prefix: string): string {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export interface BankAccountInput {
+  id?: string;
+  name: string;
+  balance: number;
 }
 
 export interface CardInput {
@@ -48,6 +57,7 @@ export interface TransactionInput {
   date: string;
   statementCycleKey?: string;
   deductFromBank?: boolean;
+  bankAccountId?: string;
 }
 
 function sortTransactions(list: Transaction[]): Transaction[] {
@@ -126,14 +136,45 @@ export function useFinanceStore() {
     [settings, cards, transactions, todayDate]
   );
 
-  const updateBankBalance = useCallback(
-    async (bankBalance: number, bankName?: string) => {
+  const saveBankAccount = useCallback(
+    async (input: BankAccountInput): Promise<BankAccount> => {
       const current = settingsRef.current;
+      const nowIso = new Date().toISOString();
+      const existing = input.id
+        ? current.bankAccounts.find((a) => a.id === input.id)
+        : undefined;
+
+      const record: BankAccount = {
+        id: existing ? existing.id : generateId('bank'),
+        name: input.name.trim().slice(0, 60) || 'Bank Account',
+        balance: roundMoney(input.balance),
+        updatedAt: nowIso,
+      };
+
+      const nextAccounts = existing
+        ? current.bankAccounts.map((a) => (a.id === record.id ? record : a))
+        : [...current.bankAccounts, record];
+
       const next: AppSettings = {
         ...current,
-        bankBalance: roundMoney(bankBalance),
-        bankName: bankName !== undefined && bankName.trim() ? bankName.trim() : current.bankName,
-        bankUpdatedAt: new Date().toISOString(),
+        ...buildBankSummaryFields(nextAccounts, nowIso),
+      };
+
+      await saveSettingsLocal(next);
+      commitSettings(next);
+      return record;
+    },
+    [commitSettings]
+  );
+
+  const deleteBankAccount = useCallback(
+    async (accountId: string) => {
+      const current = settingsRef.current;
+      const nowIso = new Date().toISOString();
+      const nextAccounts = current.bankAccounts.filter((a) => a.id !== accountId);
+      const next: AppSettings = {
+        ...current,
+        ...buildBankSummaryFields(nextAccounts, nowIso),
       };
       await saveSettingsLocal(next);
       commitSettings(next);
@@ -205,6 +246,13 @@ export function useFinanceStore() {
       const existing = input.id ? currentTxs.find((t) => t.id === input.id) : undefined;
       const amount = roundMoney(input.amount);
 
+      const wantsBankDeduction = input.type === 'payment' && Boolean(input.deductFromBank);
+      const resolvedBankAccountId = wantsBankDeduction
+        ? currentSettings.bankAccounts.find((a) => a.id === input.bankAccountId)?.id ??
+          currentSettings.bankAccounts[0]?.id
+        : undefined;
+      const effectiveDeductFromBank = Boolean(wantsBankDeduction && resolvedBankAccountId);
+
       const record: Transaction = {
         id: existing ? existing.id : generateId('tx'),
         cardId: input.cardId,
@@ -216,24 +264,43 @@ export function useFinanceStore() {
           input.type === 'payment' && input.statementCycleKey
             ? input.statementCycleKey
             : undefined,
-        deductFromBank: input.type === 'payment' ? Boolean(input.deductFromBank) : undefined,
+        deductFromBank: input.type === 'payment' ? effectiveDeductFromBank : undefined,
+        bankAccountId: effectiveDeductFromBank ? resolvedBankAccountId : undefined,
         createdAt: existing ? existing.createdAt : nowIso,
         updatedAt: nowIso,
       };
 
-      // Calculate exact bank balance delta if payment deducts from bank
-      const prevBankDeduction =
-        existing && existing.type === 'payment' && existing.deductFromBank ? existing.amount : 0;
-      const nextBankDeduction =
-        record.type === 'payment' && record.deductFromBank ? record.amount : 0;
-      const bankDelta = roundMoney(prevBankDeduction - nextBankDeduction);
+      // Calculate exact per-account balance updates (handles amount edits, toggling deduct, and switching bank accounts)
+      const nextAccounts = currentSettings.bankAccounts.map((acc) => ({...acc}));
+      let bankChanged = false;
+
+      // Step 1: Refund previous deduction if editing an existing bank-deducted payment
+      if (existing && existing.type === 'payment' && existing.deductFromBank) {
+        const prevTarget = existing.bankAccountId
+          ? nextAccounts.find((a) => a.id === existing.bankAccountId)
+          : nextAccounts[0];
+        if (prevTarget) {
+          prevTarget.balance = roundMoney(prevTarget.balance + existing.amount);
+          prevTarget.updatedAt = nowIso;
+          bankChanged = true;
+        }
+      }
+
+      // Step 2: Apply new deduction to the selected bank account
+      if (record.type === 'payment' && record.deductFromBank && record.bankAccountId) {
+        const nextTarget = nextAccounts.find((a) => a.id === record.bankAccountId);
+        if (nextTarget) {
+          nextTarget.balance = roundMoney(nextTarget.balance - record.amount);
+          nextTarget.updatedAt = nowIso;
+          bankChanged = true;
+        }
+      }
 
       let nextSettings: AppSettings | undefined;
-      if (bankDelta !== 0) {
+      if (bankChanged) {
         nextSettings = {
           ...currentSettings,
-          bankBalance: roundMoney(currentSettings.bankBalance + bankDelta),
-          bankUpdatedAt: nowIso,
+          ...buildBankSummaryFields(nextAccounts, nowIso),
         };
       }
 
@@ -261,11 +328,20 @@ export function useFinanceStore() {
 
       let nextSettings: AppSettings | undefined;
       if (refundBankBalance && existing.type === 'payment' && existing.deductFromBank) {
-        nextSettings = {
-          ...currentSettings,
-          bankBalance: roundMoney(currentSettings.bankBalance + existing.amount),
-          bankUpdatedAt: new Date().toISOString(),
-        };
+        const nowIso = new Date().toISOString();
+        const nextAccounts = currentSettings.bankAccounts.map((acc) => ({...acc}));
+        const refundTarget = existing.bankAccountId
+          ? nextAccounts.find((a) => a.id === existing.bankAccountId)
+          : nextAccounts[0];
+
+        if (refundTarget) {
+          refundTarget.balance = roundMoney(refundTarget.balance + existing.amount);
+          refundTarget.updatedAt = nowIso;
+          nextSettings = {
+            ...currentSettings,
+            ...buildBankSummaryFields(nextAccounts, nowIso),
+          };
+        }
       }
 
       await deleteTransactionLocal(transactionId, nextSettings);
@@ -305,11 +381,11 @@ export function useFinanceStore() {
 
   const clearAllData = useCallback(async () => {
     const current = settingsRef.current;
+    const base = createDefaultSettings();
     const resetSettings: AppSettings = {
-      ...DEFAULT_SETTINGS,
+      ...base,
       currency: current.currency,
       theme: current.theme,
-      bankUpdatedAt: new Date().toISOString(),
     };
     await replaceAllLocalData({
       settings: resetSettings,
@@ -329,7 +405,8 @@ export function useFinanceStore() {
     cards,
     transactions,
     summary,
-    updateBankBalance,
+    saveBankAccount,
+    deleteBankAccount,
     updateTheme,
     updateCurrency,
     saveCard,

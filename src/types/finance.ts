@@ -10,11 +10,19 @@ export type PaymentStatus = 'paid' | 'partially_paid' | 'unpaid' | 'overdue' | '
 
 export type NavTab = 'dashboard' | 'cards' | 'bills' | 'history' | 'settings';
 
+export interface BankAccount {
+  id: string;
+  name: string;
+  balance: number;
+  updatedAt: string;
+}
+
 export interface AppSettings {
   id: 'app-settings';
   bankBalance: number;
   bankName: string;
   bankUpdatedAt: string;
+  bankAccounts: BankAccount[];
   currency: CurrencyCode;
   theme: ThemeMode;
 }
@@ -39,6 +47,7 @@ export interface Transaction {
   date: string; // YYYY-MM-DD local date
   statementCycleKey?: string;
   deductFromBank?: boolean;
+  bankAccountId?: string;
   createdAt: string;
   updatedAt: string;
 }

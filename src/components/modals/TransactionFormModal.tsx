@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import type {
+  BankAccount,
   CardSummary,
   CurrencyCode,
   Transaction,
@@ -22,7 +23,7 @@ interface TransactionFormModalProps {
   open: boolean;
   onClose: () => void;
   cardSummaries: CardSummary[];
-  bankBalance: number;
+  bankAccounts: BankAccount[];
   currency: CurrencyCode;
   editingTransaction?: Transaction | null;
   preset?: TransactionModalPreset | null;
@@ -33,7 +34,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   open,
   onClose,
   cardSummaries,
-  bankBalance,
+  bankAccounts,
   currency,
   editingTransaction,
   preset,
@@ -46,11 +47,14 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const [date, setDate] = useState(getTodayDateString());
   const [statementCycleKey, setStatementCycleKey] = useState<string>('');
   const [deductFromBank, setDeductFromBank] = useState(true);
+  const [bankAccountId, setBankAccountId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    const defaultAccountId = bankAccounts[0]?.id ?? '';
+
     if (editingTransaction) {
       setType(editingTransaction.type);
       setCardId(editingTransaction.cardId);
@@ -58,7 +62,13 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       setDescription(editingTransaction.description);
       setDate(editingTransaction.date);
       setStatementCycleKey(editingTransaction.statementCycleKey ?? '');
-      setDeductFromBank(Boolean(editingTransaction.deductFromBank));
+      setDeductFromBank(Boolean(editingTransaction.deductFromBank) && bankAccounts.length > 0);
+      const existingAccStillPresent =
+        editingTransaction.bankAccountId &&
+        bankAccounts.some((a) => a.id === editingTransaction.bankAccountId);
+      setBankAccountId(
+        existingAccStillPresent ? editingTransaction.bankAccountId! : defaultAccountId
+      );
     } else {
       const initialType = preset?.type ?? 'spend';
       const defaultCardId = preset?.cardId ?? cardSummaries[0]?.card.id ?? '';
@@ -70,16 +80,31 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       );
       setDate(getTodayDateString());
       setStatementCycleKey(preset?.statementCycleKey ?? '');
-      setDeductFromBank(true);
+      setDeductFromBank(bankAccounts.length > 0);
+      setBankAccountId(defaultAccountId);
     }
     setError(null);
     setSaving(false);
-  }, [open, editingTransaction, preset, cardSummaries]);
+  }, [open, editingTransaction, preset, cardSummaries, bankAccounts]);
 
   const selectedCardSummary = useMemo(
     () => cardSummaries.find((cs) => cs.card.id === cardId) ?? null,
     [cardSummaries, cardId]
   );
+
+  const selectedBankAccount = useMemo(
+    () => bankAccounts.find((a) => a.id === bankAccountId) ?? bankAccounts[0] ?? null,
+    [bankAccounts, bankAccountId]
+  );
+
+  const previousBankAccount = useMemo(() => {
+    if (!editingTransaction || editingTransaction.type !== 'payment' || !editingTransaction.deductFromBank) {
+      return null;
+    }
+    return editingTransaction.bankAccountId
+      ? bankAccounts.find((a) => a.id === editingTransaction.bankAccountId) ?? null
+      : bankAccounts[0] ?? null;
+  }, [editingTransaction, bankAccounts]);
 
   const selectableStatements = useMemo(() => {
     if (!selectedCardSummary) return [];
@@ -91,16 +116,22 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const parsedAmount = Number(amountInput);
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
 
-  // Projected bank balance preview for payments
-  const projectedBankAfterPayment = useMemo(() => {
-    if (type !== 'payment') return bankBalance;
-    const prevDeducted =
-      editingTransaction && editingTransaction.type === 'payment' && editingTransaction.deductFromBank
-        ? editingTransaction.amount
-        : 0;
-    const nextDeducted = deductFromBank && amountValid ? parsedAmount : 0;
-    return roundMoney(bankBalance + prevDeducted - nextDeducted);
-  }, [type, bankBalance, editingTransaction, deductFromBank, amountValid, parsedAmount]);
+  // Projected balance preview for the selected bank account
+  const projectedSelectedAccountBalance = useMemo(() => {
+    if (!selectedBankAccount) return 0;
+    let balance = selectedBankAccount.balance;
+    if (
+      previousBankAccount &&
+      previousBankAccount.id === selectedBankAccount.id &&
+      editingTransaction
+    ) {
+      balance = roundMoney(balance + editingTransaction.amount);
+    }
+    if (type === 'payment' && deductFromBank && amountValid) {
+      balance = roundMoney(balance - parsedAmount);
+    }
+    return balance;
+  }, [selectedBankAccount, previousBankAccount, editingTransaction, type, deductFromBank, amountValid, parsedAmount]);
 
   const handleTypeChange = (nextType: TransactionType) => {
     setType(nextType);
@@ -145,6 +176,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
     setSaving(true);
     try {
+      const shouldDeduct = type === 'payment' && deductFromBank && Boolean(selectedBankAccount);
       await onSave({
         id: editingTransaction?.id,
         cardId,
@@ -153,7 +185,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         description: trimmedDesc,
         date,
         statementCycleKey: type === 'payment' && statementCycleKey ? statementCycleKey : undefined,
-        deductFromBank: type === 'payment' ? deductFromBank : undefined,
+        deductFromBank: type === 'payment' ? shouldDeduct : undefined,
+        bankAccountId: shouldDeduct && selectedBankAccount ? selectedBankAccount.id : undefined,
       });
       onClose();
     } catch {
@@ -376,40 +409,86 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
               </div>
             )}
 
-            <label className="flex items-start gap-3 p-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={deductFromBank}
-                onChange={(e) => setDeductFromBank(e.target.checked)}
-                className="mt-0.5 h-5 w-5 rounded border-m3-outline accent-m3-primary shrink-0"
-              />
-              <div className="text-sm min-w-0">
-                <p className="font-medium text-m3-on-surface">
-                  Also deduct from Bank Balance
-                </p>
-                <p className="mt-0.5 text-xs text-m3-on-surface-variant">
-                  {deductFromBank && amountValid ? (
-                    <>
-                      Bank balance updates to{' '}
-                      <span className="font-mono tabular-nums font-medium text-m3-on-surface">
-                        {formatMoney(projectedBankAfterPayment, currency)}
-                      </span>
-                    </>
-                  ) : !deductFromBank &&
-                    editingTransaction?.type === 'payment' &&
-                    editingTransaction.deductFromBank ? (
-                    <>
-                      Bank balance will be refunded to{' '}
-                      <span className="font-mono tabular-nums font-medium text-m3-on-surface">
-                        {formatMoney(projectedBankAfterPayment, currency)}
-                      </span>
-                    </>
-                  ) : (
-                    'Uncheck if you already updated your bank balance manually.'
-                  )}
-                </p>
+            {bankAccounts.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60 text-xs text-m3-on-surface-variant">
+                Add a bank account from the Dashboard to automatically deduct card payments from it.
               </div>
-            </label>
+            ) : (
+              <div className="p-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={deductFromBank}
+                    onChange={(e) => setDeductFromBank(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 rounded border-m3-outline accent-m3-primary shrink-0"
+                  />
+                  <div className="text-sm min-w-0 flex-1">
+                    <p className="font-medium text-m3-on-surface">
+                      {bankAccounts.length === 1 && selectedBankAccount
+                        ? `Also deduct from ${selectedBankAccount.name}`
+                        : 'Also deduct from a Bank Account'}
+                    </p>
+                    <p className="mt-0.5 text-xs text-m3-on-surface-variant">
+                      {deductFromBank && amountValid && selectedBankAccount ? (
+                        <>
+                          {selectedBankAccount.name} updates to{' '}
+                          <span
+                            className={`font-mono tabular-nums font-medium ${
+                              projectedSelectedAccountBalance < 0
+                                ? 'text-m3-error'
+                                : 'text-m3-on-surface'
+                            }`}
+                          >
+                            {formatMoney(projectedSelectedAccountBalance, currency)}
+                          </span>
+                          {previousBankAccount &&
+                            previousBankAccount.id !== selectedBankAccount.id &&
+                            editingTransaction && (
+                              <>
+                                {' '}
+                                ({previousBankAccount.name} refunded{' '}
+                                {formatMoney(editingTransaction.amount, currency)})
+                              </>
+                            )}
+                        </>
+                      ) : !deductFromBank && previousBankAccount && editingTransaction ? (
+                        <>
+                          {previousBankAccount.name} will be refunded{' '}
+                          <span className="font-mono tabular-nums font-medium text-m3-on-surface">
+                            {formatMoney(editingTransaction.amount, currency)}
+                          </span>
+                        </>
+                      ) : (
+                        'Uncheck if you already updated your bank balance manually.'
+                      )}
+                    </p>
+                  </div>
+                </label>
+
+                {deductFromBank && bankAccounts.length > 1 && (
+                  <div className="pl-8">
+                    <label
+                      htmlFor="tx-bank-account-select"
+                      className="block text-xs font-medium text-m3-on-surface-variant mb-1.5"
+                    >
+                      Pay From Bank Account
+                    </label>
+                    <select
+                      id="tx-bank-account-select"
+                      value={selectedBankAccount?.id ?? ''}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 rounded-2xl bg-m3-surface border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none"
+                    >
+                      {bankAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} — {formatMoney(acc.balance, currency)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

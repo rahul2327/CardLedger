@@ -84,16 +84,43 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               className="h-9 px-3.5 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap shrink-0"
             >
               <Pencil className="w-3.5 h-3.5 shrink-0" />
-              <span>Update</span>
+              <span>{settings.bankAccounts.length > 1 ? 'Manage' : 'Update'}</span>
             </button>
           </div>
           <div>
             <p className="text-2xl sm:text-[28px] font-semibold font-mono tabular-nums tracking-tight text-m3-on-surface">
               {formatMoney(summary.bankBalance, currency)}
             </p>
-            <p className="mt-1 text-xs text-m3-on-surface-variant">
-              Available cash on hand
-            </p>
+            {settings.bankAccounts.length > 1 ? (
+              <div className="mt-2.5 pt-2.5 border-t border-m3-outline-variant/40 space-y-1">
+                {settings.bankAccounts.slice(0, 3).map((acc) => (
+                  <div
+                    key={acc.id}
+                    className="flex items-center justify-between gap-2 text-xs text-m3-on-surface-variant"
+                  >
+                    <span className="truncate">{acc.name}</span>
+                    <span className="font-mono tabular-nums font-medium text-m3-on-surface shrink-0">
+                      {formatMoney(acc.balance, currency)}
+                    </span>
+                  </div>
+                ))}
+                {settings.bankAccounts.length > 3 && (
+                  <button
+                    type="button"
+                    onClick={onEditBankBalance}
+                    className="text-xs font-medium text-m3-primary hover:underline pt-0.5"
+                  >
+                    +{settings.bankAccounts.length - 3} more accounts
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-m3-on-surface-variant">
+                {settings.bankAccounts.length === 0
+                  ? 'Tap Update to add a bank account'
+                  : 'Available cash on hand'}
+              </p>
+            )}
           </div>
         </div>
 
@@ -413,7 +440,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                             </p>
                             <p className="text-xs text-m3-on-surface-variant truncate">
                               {card?.name ?? 'Card'} · {formatShortDate(tx.date)} ·{' '}
-                              {isPayment ? 'Payment' : 'Spend'}
+                              {isPayment
+                                ? tx.deductFromBank && tx.bankAccountId
+                                  ? `Paid via ${
+                                      settings.bankAccounts.find((a) => a.id === tx.bankAccountId)
+                                        ?.name ?? 'Bank'
+                                    }`
+                                  : 'Payment'
+                                : 'Spend'}
                             </p>
                           </div>
                         </div>

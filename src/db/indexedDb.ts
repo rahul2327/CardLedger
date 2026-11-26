@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   BackupPayload,
+  BankAccount,
   CardColorToken,
   CreditCard,
   CurrencyCode,
@@ -18,14 +19,126 @@ const STORE_TRANSACTIONS = 'transactions';
 
 const THEME_STORAGE_KEY = 'cardledger_theme';
 
-export const DEFAULT_SETTINGS: AppSettings = {
-  id: 'app-settings',
-  bankBalance: 0,
-  bankName: 'Primary Bank Account',
-  bankUpdatedAt: new Date().toISOString(),
-  currency: 'INR',
-  theme: 'dark',
-};
+const VALID_CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
+const VALID_THEMES: ThemeMode[] = ['light', 'dark', 'system'];
+const VALID_COLORS: CardColorToken[] = ['teal', 'indigo', 'emerald', 'amber', 'rose', 'slate'];
+const MAX_AMOUNT = 999_999_999.99;
+
+export function buildBankSummaryFields(
+  bankAccounts: BankAccount[],
+  fallbackUpdatedAt?: string
+): {
+  bankBalance: number;
+  bankName: string;
+  bankUpdatedAt: string;
+  bankAccounts: BankAccount[];
+} {
+  const nowIso = fallbackUpdatedAt || new Date().toISOString();
+  const normalizedAccounts = bankAccounts.map((acc) => ({
+    id: acc.id,
+    name: acc.name.trim().slice(0, 60) || 'Bank Account',
+    balance: roundMoney(acc.balance),
+    updatedAt: typeof acc.updatedAt === 'string' && acc.updatedAt ? acc.updatedAt : nowIso,
+  }));
+
+  const bankBalance = roundMoney(
+    normalizedAccounts.reduce((acc, item) => acc + item.balance, 0)
+  );
+  const bankName =
+    normalizedAccounts.length === 0
+      ? 'No Bank Accounts'
+      : normalizedAccounts.length === 1
+        ? normalizedAccounts[0].name
+        : `${normalizedAccounts.length} Bank Accounts`;
+
+  return {
+    bankBalance,
+    bankName,
+    bankUpdatedAt: nowIso,
+    bankAccounts: normalizedAccounts,
+  };
+}
+
+export function createDefaultSettings(): AppSettings {
+  const nowIso = new Date().toISOString();
+  const primaryAccount: BankAccount = {
+    id: 'bank-primary',
+    name: 'Primary Bank Account',
+    balance: 0,
+    updatedAt: nowIso,
+  };
+  return {
+    id: 'app-settings',
+    ...buildBankSummaryFields([primaryAccount], nowIso),
+    currency: 'INR',
+    theme: 'dark',
+  };
+}
+
+export const DEFAULT_SETTINGS: AppSettings = createDefaultSettings();
+
+export function normalizeStoredSettings(raw?: Partial<AppSettings> | null): AppSettings {
+  const nowIso = new Date().toISOString();
+  if (!raw) {
+    return createDefaultSettings();
+  }
+
+  const currency = VALID_CURRENCIES.includes(raw.currency as CurrencyCode)
+    ? (raw.currency as CurrencyCode)
+    : DEFAULT_SETTINGS.currency;
+  const theme = VALID_THEMES.includes(raw.theme as ThemeMode)
+    ? (raw.theme as ThemeMode)
+    : DEFAULT_SETTINGS.theme;
+  const updatedAt =
+    typeof raw.bankUpdatedAt === 'string' && raw.bankUpdatedAt ? raw.bankUpdatedAt : nowIso;
+
+  let bankAccounts: BankAccount[];
+  if (Array.isArray(raw.bankAccounts)) {
+    const seen = new Set<string>();
+    bankAccounts = [];
+    for (let i = 0; i < raw.bankAccounts.length; i++) {
+      const item = raw.bankAccounts[i];
+      if (!item || typeof item !== 'object') continue;
+      const id =
+        typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `bank-${i + 1}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const balance = Number(item.balance);
+      bankAccounts.push({
+        id,
+        name:
+          typeof item.name === 'string' && item.name.trim()
+            ? item.name.trim().slice(0, 60)
+            : `Bank Account ${i + 1}`,
+        balance: Number.isFinite(balance) ? roundMoney(balance) : 0,
+        updatedAt:
+          typeof item.updatedAt === 'string' && item.updatedAt ? item.updatedAt : updatedAt,
+      });
+    }
+  } else {
+    // Seamless backwards-compatible migration from legacy single-bank storage
+    const legacyBalance = Number(raw.bankBalance);
+    const legacyName =
+      typeof raw.bankName === 'string' && raw.bankName.trim()
+        ? raw.bankName.trim().slice(0, 60)
+        : 'Primary Bank Account';
+    bankAccounts = [
+      {
+        id: 'bank-primary',
+        name: legacyName,
+        balance: Number.isFinite(legacyBalance) ? roundMoney(legacyBalance) : 0,
+        updatedAt,
+      },
+    ];
+  }
+
+  return {
+    id: 'app-settings',
+    ...buildBankSummaryFields(bankAccounts, updatedAt),
+    currency,
+    theme,
+  };
+}
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -82,15 +195,13 @@ export async function loadAllLocalData(): Promise<{
     const tx = db.transaction([STORE_SETTINGS, STORE_CARDS, STORE_TRANSACTIONS], 'readonly');
     const [storedSettings, cards, transactions] = await Promise.all([
       reqToPromise(tx.objectStore(STORE_SETTINGS).get('app-settings')) as Promise<
-        AppSettings | undefined
+        Partial<AppSettings> | undefined
       >,
       reqToPromise(tx.objectStore(STORE_CARDS).getAll()) as Promise<CreditCard[]>,
       reqToPromise(tx.objectStore(STORE_TRANSACTIONS).getAll()) as Promise<Transaction[]>,
     ]);
 
-    const settings: AppSettings = storedSettings
-      ? {...DEFAULT_SETTINGS, ...storedSettings, id: 'app-settings'}
-      : {...DEFAULT_SETTINGS};
+    const settings = normalizeStoredSettings(storedSettings);
 
     syncThemeCache(settings.theme);
 
@@ -116,15 +227,12 @@ export function syncThemeCache(theme: ThemeMode): void {
 }
 
 export async function saveSettingsLocal(settings: AppSettings): Promise<void> {
-  syncThemeCache(settings.theme);
+  const normalized = normalizeStoredSettings(settings);
+  syncThemeCache(normalized.theme);
   const db = await openDatabase();
   try {
     const tx = db.transaction(STORE_SETTINGS, 'readwrite');
-    tx.objectStore(STORE_SETTINGS).put({
-      ...settings,
-      id: 'app-settings',
-      bankBalance: roundMoney(settings.bankBalance),
-    });
+    tx.objectStore(STORE_SETTINGS).put(normalized);
     await txDone(tx);
   } finally {
     db.close();
@@ -173,12 +281,9 @@ export async function saveTransactionLocal(
       amount: roundMoney(transaction.amount),
     });
     if (updatedSettings) {
-      syncThemeCache(updatedSettings.theme);
-      tx.objectStore(STORE_SETTINGS).put({
-        ...updatedSettings,
-        id: 'app-settings',
-        bankBalance: roundMoney(updatedSettings.bankBalance),
-      });
+      const normalized = normalizeStoredSettings(updatedSettings);
+      syncThemeCache(normalized.theme);
+      tx.objectStore(STORE_SETTINGS).put(normalized);
     }
     await txDone(tx);
   } finally {
@@ -196,12 +301,9 @@ export async function deleteTransactionLocal(
     const tx = db.transaction(stores, 'readwrite');
     tx.objectStore(STORE_TRANSACTIONS).delete(transactionId);
     if (updatedSettings) {
-      syncThemeCache(updatedSettings.theme);
-      tx.objectStore(STORE_SETTINGS).put({
-        ...updatedSettings,
-        id: 'app-settings',
-        bankBalance: roundMoney(updatedSettings.bankBalance),
-      });
+      const normalized = normalizeStoredSettings(updatedSettings);
+      syncThemeCache(normalized.theme);
+      tx.objectStore(STORE_SETTINGS).put(normalized);
     }
     await txDone(tx);
   } finally {
@@ -214,7 +316,8 @@ export async function replaceAllLocalData(data: {
   cards: CreditCard[];
   transactions: Transaction[];
 }): Promise<void> {
-  syncThemeCache(data.settings.theme);
+  const normalizedSettings = normalizeStoredSettings(data.settings);
+  syncThemeCache(normalizedSettings.theme);
   const db = await openDatabase();
   try {
     const tx = db.transaction([STORE_SETTINGS, STORE_CARDS, STORE_TRANSACTIONS], 'readwrite');
@@ -226,12 +329,7 @@ export async function replaceAllLocalData(data: {
     cardsStore.clear();
     txStore.clear();
 
-    settingsStore.put({
-      ...DEFAULT_SETTINGS,
-      ...data.settings,
-      id: 'app-settings',
-      bankBalance: roundMoney(data.settings.bankBalance),
-    });
+    settingsStore.put(normalizedSettings);
 
     for (const card of data.cards) {
       cardsStore.put(card);
@@ -249,21 +347,16 @@ export async function replaceAllLocalData(data: {
   }
 }
 
-const VALID_CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
-const VALID_THEMES: ThemeMode[] = ['light', 'dark', 'system'];
-const VALID_COLORS: CardColorToken[] = ['teal', 'indigo', 'emerald', 'amber', 'rose', 'slate'];
-const MAX_AMOUNT = 999_999_999.99;
-
 export function buildBackupPayload(
   settings: AppSettings,
   cards: CreditCard[],
   transactions: Transaction[]
 ): BackupPayload {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     app: 'CardLedger',
-    settings,
+    settings: normalizeStoredSettings(settings),
     cards,
     transactions,
   };
@@ -288,25 +381,65 @@ export function validateBackupPayload(
   }
 
   const s = obj.settings as Record<string, unknown>;
-  const bankBalance = Number(s.bankBalance);
-  if (!Number.isFinite(bankBalance) || Math.abs(bankBalance) > MAX_AMOUNT) {
-    return {valid: false, error: 'Bank balance in backup is invalid.'};
-  }
+  const nowIso = new Date().toISOString();
+  const bankUpdatedAt = typeof s.bankUpdatedAt === 'string' && s.bankUpdatedAt ? s.bankUpdatedAt : nowIso;
 
   const currency = VALID_CURRENCIES.includes(s.currency as CurrencyCode)
     ? (s.currency as CurrencyCode)
     : 'INR';
   const theme = VALID_THEMES.includes(s.theme as ThemeMode) ? (s.theme as ThemeMode) : 'system';
 
+  let sanitizedAccounts: BankAccount[];
+  if (Array.isArray(s.bankAccounts)) {
+    const accountIds = new Set<string>();
+    sanitizedAccounts = [];
+    for (let i = 0; i < s.bankAccounts.length; i++) {
+      const a = s.bankAccounts[i] as Record<string, unknown>;
+      if (!a || typeof a !== 'object') {
+        return {valid: false, error: `Bank account #${i + 1} in backup is invalid.`};
+      }
+      const id = typeof a.id === 'string' && a.id.trim() ? a.id.trim() : '';
+      const name = typeof a.name === 'string' && a.name.trim() ? a.name.trim() : '';
+      const balance = Number(a.balance);
+      if (!id || !name) {
+        return {valid: false, error: `Bank account #${i + 1} is missing an id or name.`};
+      }
+      if (accountIds.has(id)) {
+        return {valid: false, error: `Duplicate bank account ID "${id}" found in backup.`};
+      }
+      if (!Number.isFinite(balance) || Math.abs(balance) > MAX_AMOUNT) {
+        return {valid: false, error: `Bank account "${name}" has an invalid balance.`};
+      }
+      accountIds.add(id);
+      sanitizedAccounts.push({
+        id,
+        name: name.slice(0, 60),
+        balance: roundMoney(balance),
+        updatedAt: typeof a.updatedAt === 'string' && a.updatedAt ? a.updatedAt : bankUpdatedAt,
+      });
+    }
+  } else {
+    // Legacy schemaVersion 1 backup: migrate single bank account seamlessly
+    const bankBalance = Number(s.bankBalance);
+    if (!Number.isFinite(bankBalance) || Math.abs(bankBalance) > MAX_AMOUNT) {
+      return {valid: false, error: 'Bank balance in backup is invalid.'};
+    }
+    sanitizedAccounts = [
+      {
+        id: 'bank-primary',
+        name:
+          typeof s.bankName === 'string' && s.bankName.trim()
+            ? s.bankName.trim().slice(0, 60)
+            : 'Primary Bank Account',
+        balance: roundMoney(bankBalance),
+        updatedAt: bankUpdatedAt,
+      },
+    ];
+  }
+
   const sanitizedSettings: AppSettings = {
     id: 'app-settings',
-    bankBalance: roundMoney(bankBalance),
-    bankName:
-      typeof s.bankName === 'string' && s.bankName.trim()
-        ? s.bankName.trim().slice(0, 60)
-        : 'Primary Bank Account',
-    bankUpdatedAt:
-      typeof s.bankUpdatedAt === 'string' ? s.bankUpdatedAt : new Date().toISOString(),
+    ...buildBankSummaryFields(sanitizedAccounts, bankUpdatedAt),
     currency,
     theme,
   };
@@ -358,7 +491,7 @@ export function validateBackupPayload(
       colorToken: VALID_COLORS.includes(c.colorToken as CardColorToken)
         ? (c.colorToken as CardColorToken)
         : 'teal',
-      createdAt: typeof c.createdAt === 'string' ? c.createdAt : new Date().toISOString(),
+      createdAt: typeof c.createdAt === 'string' ? c.createdAt : nowIso,
     });
   }
 
@@ -408,16 +541,20 @@ export function validateBackupPayload(
           ? t.statementCycleKey
           : undefined,
       deductFromBank: typeof t.deductFromBank === 'boolean' ? t.deductFromBank : undefined,
-      createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
-      updatedAt: typeof t.updatedAt === 'string' ? t.updatedAt : new Date().toISOString(),
+      bankAccountId:
+        typeof t.bankAccountId === 'string' && t.bankAccountId.trim()
+          ? t.bankAccountId.trim()
+          : undefined,
+      createdAt: typeof t.createdAt === 'string' ? t.createdAt : nowIso,
+      updatedAt: typeof t.updatedAt === 'string' ? t.updatedAt : nowIso,
     });
   }
 
   return {
     valid: true,
     payload: {
-      schemaVersion: 1,
-      exportedAt: typeof obj.exportedAt === 'string' ? obj.exportedAt : new Date().toISOString(),
+      schemaVersion: 2,
+      exportedAt: typeof obj.exportedAt === 'string' ? obj.exportedAt : nowIso,
       app: 'CardLedger',
       settings: sanitizedSettings,
       cards: sanitizedCards,

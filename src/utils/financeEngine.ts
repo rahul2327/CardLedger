@@ -423,6 +423,15 @@ export function computeCardSummary(
   };
 }
 
+export function getTotalBankBalance(settings: AppSettings): number {
+  if (Array.isArray(settings.bankAccounts)) {
+    return roundMoney(
+      settings.bankAccounts.reduce((acc, item) => acc + (Number.isFinite(item.balance) ? item.balance : 0), 0)
+    );
+  }
+  return roundMoney(settings.bankBalance);
+}
+
 /**
  * Computes the complete dashboard summary from settings, cards, and transactions.
  */
@@ -446,7 +455,8 @@ export function computeDashboardSummary(
     cardSummaries.reduce((acc, cs) => acc + cs.currentUnbilledAmount, 0)
   );
 
-  const balanceAfterCCPayments = roundMoney(settings.bankBalance - totalCCOutstanding);
+  const totalBankBalance = getTotalBankBalance(settings);
+  const balanceAfterCCPayments = roundMoney(totalBankBalance - totalCCOutstanding);
 
   // Collect all unpaid generated statements across cards, sorted by soonest due date
   const upcomingDueBills: UpcomingBillItem[] = [];
@@ -464,7 +474,7 @@ export function computeDashboardSummary(
   upcomingDueBills.sort((a, b) => a.statement.dueDate.localeCompare(b.statement.dueDate));
 
   return {
-    bankBalance: roundMoney(settings.bankBalance),
+    bankBalance: totalBankBalance,
     totalCCOutstanding,
     upcomingCCBills,
     currentUnbilledTotal,

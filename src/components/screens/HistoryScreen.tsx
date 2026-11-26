@@ -9,7 +9,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react';
-import type {CreditCard, CurrencyCode, Transaction} from '../../types/finance';
+import type {BankAccount, CreditCard, CurrencyCode, Transaction} from '../../types/finance';
 import {
   getCycleWindowForTransactionDate,
   roundMoney,
@@ -19,6 +19,7 @@ import type {TransactionModalPreset} from '../modals/TransactionFormModal';
 
 interface HistoryScreenProps {
   cards: CreditCard[];
+  bankAccounts: BankAccount[];
   transactions: Transaction[];
   currency: CurrencyCode;
   todayDate: string;
@@ -32,6 +33,7 @@ type SortOrder = 'newest' | 'oldest';
 
 export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   cards,
+  bankAccounts,
   transactions,
   currency,
   todayDate,
@@ -47,6 +49,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
 
   const cardById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  const bankById = useMemo(() => new Map(bankAccounts.map((b) => [b.id, b])), [bankAccounts]);
 
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
@@ -65,9 +68,13 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
       if (toDate && tx.date > toDate) return false;
       if (query) {
         const cardName = cardById.get(tx.cardId)?.name.toLowerCase() ?? '';
+        const bankName = tx.bankAccountId
+          ? bankById.get(tx.bankAccountId)?.name.toLowerCase() ?? ''
+          : '';
         const matchesDesc = tx.description.toLowerCase().includes(query);
         const matchesCard = cardName.includes(query);
-        if (!matchesDesc && !matchesCard) return false;
+        const matchesBank = bankName.includes(query);
+        if (!matchesDesc && !matchesCard && !matchesBank) return false;
       }
       return true;
     });
@@ -82,7 +89,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         ? b.createdAt.localeCompare(a.createdAt)
         : a.createdAt.localeCompare(b.createdAt);
     });
-  }, [transactions, cardFilter, typeFilter, fromDate, toDate, searchQuery, sortOrder, cardById]);
+  }, [transactions, cardFilter, typeFilter, fromDate, toDate, searchQuery, sortOrder, cardById, bankById]);
 
   const filteredTotals = useMemo(() => {
     let spend = 0;
@@ -316,7 +323,9 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                         {card?.name ?? 'Card'} · {formatShortDate(tx.date)}
                         {isPayment
                           ? tx.deductFromBank
-                            ? ' · Payment (Bank deducted)'
+                            ? tx.bankAccountId && bankById.get(tx.bankAccountId)
+                              ? ` · Paid via ${bankById.get(tx.bankAccountId)!.name}`
+                              : ' · Payment (Bank deducted)'
                             : ' · Payment'
                           : cycleLabel
                             ? ` · ${cycleLabel}`
