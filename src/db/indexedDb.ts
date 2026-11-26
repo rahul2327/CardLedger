@@ -7,7 +7,7 @@ import type {
   ThemeMode,
   Transaction,
 } from '../types/finance';
-import {roundMoney} from '../utils/financeEngine';
+import {isValidCalendarDate, roundMoney} from '../utils/financeEngine';
 
 const DB_NAME = 'cardledger_offline_db';
 const DB_VERSION = 1;
@@ -252,7 +252,7 @@ export async function replaceAllLocalData(data: {
 const VALID_CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
 const VALID_THEMES: ThemeMode[] = ['light', 'dark', 'system'];
 const VALID_COLORS: CardColorToken[] = ['teal', 'indigo', 'emerald', 'amber', 'rose', 'slate'];
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_AMOUNT = 999_999_999.99;
 
 export function buildBackupPayload(
   settings: AppSettings,
@@ -289,7 +289,7 @@ export function validateBackupPayload(
 
   const s = obj.settings as Record<string, unknown>;
   const bankBalance = Number(s.bankBalance);
-  if (!Number.isFinite(bankBalance)) {
+  if (!Number.isFinite(bankBalance) || Math.abs(bankBalance) > MAX_AMOUNT) {
     return {valid: false, error: 'Bank balance in backup is invalid.'};
   }
 
@@ -327,6 +327,9 @@ export function validateBackupPayload(
     if (!id || !name) {
       return {valid: false, error: `Card entry #${i + 1} is missing an id or name.`};
     }
+    if (cardIds.has(id)) {
+      return {valid: false, error: `Duplicate credit card ID "${id}" found in backup.`};
+    }
     if (!Number.isInteger(billingDay) || billingDay < 1 || billingDay > 31) {
       return {valid: false, error: `Card "${name}" has an invalid billing day.`};
     }
@@ -337,7 +340,7 @@ export function validateBackupPayload(
     let limit: number | null = null;
     if (c.limit !== null && c.limit !== undefined && c.limit !== '') {
       const parsedLimit = Number(c.limit);
-      if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
+      if (!Number.isFinite(parsedLimit) || parsedLimit <= 0 || parsedLimit > MAX_AMOUNT) {
         return {valid: false, error: `Card "${name}" has an invalid credit limit.`};
       }
       limit = roundMoney(parsedLimit);
@@ -359,6 +362,7 @@ export function validateBackupPayload(
     });
   }
 
+  const txIds = new Set<string>();
   const sanitizedTransactions: Transaction[] = [];
   for (let i = 0; i < obj.transactions.length; i++) {
     const t = obj.transactions[i] as Record<string, unknown>;
@@ -378,16 +382,20 @@ export function validateBackupPayload(
         error: `Transaction #${i + 1} references a credit card that is not in the backup.`,
       };
     }
+    if (txIds.has(id)) {
+      return {valid: false, error: `Duplicate transaction ID "${id}" found in backup.`};
+    }
     if (!type) {
       return {valid: false, error: `Transaction #${i + 1} has an invalid type.`};
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) {
       return {valid: false, error: `Transaction #${i + 1} has an invalid amount.`};
     }
-    if (!ISO_DATE_RE.test(date)) {
-      return {valid: false, error: `Transaction #${i + 1} has an invalid date format.`};
+    if (!isValidCalendarDate(date)) {
+      return {valid: false, error: `Transaction #${i + 1} has an invalid calendar date.`};
     }
 
+    txIds.add(id);
     sanitizedTransactions.push({
       id,
       cardId,
@@ -396,7 +404,7 @@ export function validateBackupPayload(
       description: description ? description.slice(0, 120) : type === 'payment' ? 'Card Payment' : 'Card Spend',
       date,
       statementCycleKey:
-        typeof t.statementCycleKey === 'string' && ISO_DATE_RE.test(t.statementCycleKey)
+        typeof t.statementCycleKey === 'string' && isValidCalendarDate(t.statementCycleKey)
           ? t.statementCycleKey
           : undefined,
       deductFromBank: typeof t.deductFromBank === 'boolean' ? t.deductFromBank : undefined,

@@ -604,8 +604,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       </p>
                       <p className="text-xs text-m3-on-surface-variant">
                         Next bill {formatDayMonth(cs.nextStatementDate)} ·{' '}
-                        {cs.currentCycle.transactionCount}{' '}
-                        {cs.currentCycle.transactionCount === 1 ? 'entry' : 'entries'}
+                        {cs.unbilledTransactionCount}{' '}
+                        {cs.unbilledTransactionCount === 1 ? 'entry' : 'entries'}
                       </p>
                     </div>
                     <span className="text-sm font-semibold font-mono tabular-nums text-m3-on-surface shrink-0">

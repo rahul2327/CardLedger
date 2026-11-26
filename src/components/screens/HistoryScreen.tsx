@@ -204,6 +204,14 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           </div>
         </div>
 
+        {/* Inverted date range notice */}
+        {fromDate && toDate && fromDate > toDate && (
+          <p className="text-xs text-m3-error">
+            Start date ({formatShortDate(fromDate)}) is after end date ({formatShortDate(toDate)}).
+            Adjust the date range to see matching transactions.
+          </p>
+        )}
+
         {/* Filter Totals & Reset */}
         <div className="pt-2 border-t border-m3-outline-variant/50 flex flex-wrap items-center justify-between gap-3 text-xs text-m3-on-surface-variant">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

@@ -333,8 +333,8 @@ export const BillsScreen: React.FC<BillsScreenProps> = ({
                     {formatShortDate(cs.currentCycle.dueDate)}
                   </p>
                   <p className="text-xs text-m3-on-surface-variant">
-                    {cs.currentCycle.transactionCount}{' '}
-                    {cs.currentCycle.transactionCount === 1 ? 'spending entry' : 'spending entries'}
+                    {cs.unbilledTransactionCount}{' '}
+                    {cs.unbilledTransactionCount === 1 ? 'spending entry' : 'spending entries'}
                     {cs.currentCycle.paidAmount > 0 && (
                       <>
                         {' '}

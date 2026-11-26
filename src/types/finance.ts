@@ -71,6 +71,7 @@ export interface CardSummary {
   generatedStatements: BillingStatement[];
   upcomingBillAmount: number;
   currentUnbilledAmount: number;
+  unbilledTransactionCount: number;
   nextDueDate: string | null;
   nextStatementDate: string;
 }

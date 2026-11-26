@@ -35,11 +35,12 @@
           var saved = localStorage.getItem('cardledger_theme') || 'system';
           var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           var isDark = saved === 'dark' || (saved === 'system' && prefersDark);
-          if (isDark) {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
+          document.documentElement.classList.toggle('dark', isDark);
+          var meta = document.createElement('meta');
+          meta.name = 'theme-color';
+          meta.id = 'dynamic-theme-color';
+          meta.content = isDark ? '#0F1514' : '#F7FAF9';
+          document.head.appendChild(meta);
         } catch (e) {}
       })();
     </script>

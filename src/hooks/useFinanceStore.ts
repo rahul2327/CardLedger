@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   DEFAULT_SETTINGS,
   deleteCardAndTransactionsLocal,
@@ -50,6 +50,13 @@ export interface TransactionInput {
   deductFromBank?: boolean;
 }
 
+function sortTransactions(list: Transaction[]): Transaction[] {
+  return [...list].sort((a, b) => {
+    const cmp = b.date.localeCompare(a.date);
+    return cmp !== 0 ? cmp : b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
 export function useFinanceStore() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [cards, setCards] = useState<CreditCard[]>([]);
@@ -57,6 +64,27 @@ export function useFinanceStore() {
   const [isLoading, setIsLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [todayDate, setTodayDate] = useState<string>(() => getTodayDateString());
+
+  // Live refs prevent stale-closure overwrites during rapid consecutive mutations
+  const settingsRef = useRef<AppSettings>(settings);
+  const cardsRef = useRef<CreditCard[]>(cards);
+  const transactionsRef = useRef<Transaction[]>(transactions);
+
+  const commitSettings = useCallback((next: AppSettings) => {
+    settingsRef.current = next;
+    setSettings(next);
+  }, []);
+
+  const commitCards = useCallback((next: CreditCard[]) => {
+    cardsRef.current = next;
+    setCards(next);
+  }, []);
+
+  const commitTransactions = useCallback((next: Transaction[]) => {
+    const sorted = sortTransactions(next);
+    transactionsRef.current = sorted;
+    setTransactions(sorted);
+  }, []);
 
   // Keep today's date fresh if app stays open across midnight
   useEffect(() => {
@@ -73,9 +101,9 @@ export function useFinanceStore() {
     loadAllLocalData()
       .then((data) => {
         if (!active) return;
-        setSettings(data.settings);
-        setCards(data.cards);
-        setTransactions(data.transactions);
+        commitSettings(data.settings);
+        commitCards(data.cards);
+        commitTransactions(data.transactions);
         setStorageError(null);
       })
       .catch((err) => {
@@ -91,7 +119,7 @@ export function useFinanceStore() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [commitSettings, commitCards, commitTransactions]);
 
   const summary = useMemo(
     () => computeDashboardSummary(settings, cards, transactions, todayDate),
@@ -100,39 +128,41 @@ export function useFinanceStore() {
 
   const updateBankBalance = useCallback(
     async (bankBalance: number, bankName?: string) => {
+      const current = settingsRef.current;
       const next: AppSettings = {
-        ...settings,
+        ...current,
         bankBalance: roundMoney(bankBalance),
-        bankName: bankName !== undefined && bankName.trim() ? bankName.trim() : settings.bankName,
+        bankName: bankName !== undefined && bankName.trim() ? bankName.trim() : current.bankName,
         bankUpdatedAt: new Date().toISOString(),
       };
       await saveSettingsLocal(next);
-      setSettings(next);
+      commitSettings(next);
     },
-    [settings]
+    [commitSettings]
   );
 
   const updateTheme = useCallback(
     async (theme: ThemeMode) => {
-      const next: AppSettings = {...settings, theme};
+      const next: AppSettings = {...settingsRef.current, theme};
       await saveSettingsLocal(next);
-      setSettings(next);
+      commitSettings(next);
     },
-    [settings]
+    [commitSettings]
   );
 
   const updateCurrency = useCallback(
     async (currency: CurrencyCode) => {
-      const next: AppSettings = {...settings, currency};
+      const next: AppSettings = {...settingsRef.current, currency};
       await saveSettingsLocal(next);
-      setSettings(next);
+      commitSettings(next);
     },
-    [settings]
+    [commitSettings]
   );
 
   const saveCard = useCallback(
     async (input: CardInput): Promise<CreditCard> => {
-      const existing = input.id ? cards.find((c) => c.id === input.id) : undefined;
+      const currentCards = cardsRef.current;
+      const existing = input.id ? currentCards.find((c) => c.id === input.id) : undefined;
       const record: CreditCard = {
         id: existing ? existing.id : generateId('card'),
         name: input.name.trim(),
@@ -145,26 +175,34 @@ export function useFinanceStore() {
       };
 
       await saveCardLocal(record);
-      setCards((prev) =>
-        existing
-          ? prev.map((c) => (c.id === record.id ? record : c))
-          : [...prev, record]
-      );
+      const nextCards = existing
+        ? currentCards.map((c) => (c.id === record.id ? record : c))
+        : [...currentCards, record];
+      commitCards(nextCards);
       return record;
     },
-    [cards]
+    [commitCards]
   );
 
-  const deleteCard = useCallback(async (cardId: string) => {
-    await deleteCardAndTransactionsLocal(cardId);
-    setCards((prev) => prev.filter((c) => c.id !== cardId));
-    setTransactions((prev) => prev.filter((t) => t.cardId !== cardId));
-  }, []);
+  const deleteCard = useCallback(
+    async (cardId: string) => {
+      await deleteCardAndTransactionsLocal(cardId);
+      commitCards(cardsRef.current.filter((c) => c.id !== cardId));
+      commitTransactions(transactionsRef.current.filter((t) => t.cardId !== cardId));
+    },
+    [commitCards, commitTransactions]
+  );
 
   const saveTransaction = useCallback(
     async (input: TransactionInput): Promise<Transaction> => {
+      if (!cardsRef.current.some((c) => c.id === input.cardId)) {
+        throw new Error('Selected credit card no longer exists.');
+      }
+
       const nowIso = new Date().toISOString();
-      const existing = input.id ? transactions.find((t) => t.id === input.id) : undefined;
+      const currentTxs = transactionsRef.current;
+      const currentSettings = settingsRef.current;
+      const existing = input.id ? currentTxs.find((t) => t.id === input.id) : undefined;
       const amount = roundMoney(input.amount);
 
       const record: Transaction = {
@@ -174,7 +212,10 @@ export function useFinanceStore() {
         amount,
         description: input.description.trim(),
         date: input.date,
-        statementCycleKey: input.statementCycleKey || undefined,
+        statementCycleKey:
+          input.type === 'payment' && input.statementCycleKey
+            ? input.statementCycleKey
+            : undefined,
         deductFromBank: input.type === 'payment' ? Boolean(input.deductFromBank) : undefined,
         createdAt: existing ? existing.createdAt : nowIso,
         updatedAt: nowIso,
@@ -190,91 +231,84 @@ export function useFinanceStore() {
       let nextSettings: AppSettings | undefined;
       if (bankDelta !== 0) {
         nextSettings = {
-          ...settings,
-          bankBalance: roundMoney(settings.bankBalance + bankDelta),
+          ...currentSettings,
+          bankBalance: roundMoney(currentSettings.bankBalance + bankDelta),
           bankUpdatedAt: nowIso,
         };
       }
 
       await saveTransactionLocal(record, nextSettings);
       if (nextSettings) {
-        setSettings(nextSettings);
+        commitSettings(nextSettings);
       }
 
-      setTransactions((prev) => {
-        const updated = existing
-          ? prev.map((t) => (t.id === record.id ? record : t))
-          : [record, ...prev];
-        return updated.sort((a, b) => {
-          const cmp = b.date.localeCompare(a.date);
-          return cmp !== 0 ? cmp : b.createdAt.localeCompare(a.createdAt);
-        });
-      });
+      const updatedTxs = existing
+        ? currentTxs.map((t) => (t.id === record.id ? record : t))
+        : [record, ...currentTxs];
+      commitTransactions(updatedTxs);
 
       return record;
     },
-    [transactions, settings]
+    [commitSettings, commitTransactions]
   );
 
   const deleteTransaction = useCallback(
     async (transactionId: string, refundBankBalance = false) => {
-      const existing = transactions.find((t) => t.id === transactionId);
+      const currentTxs = transactionsRef.current;
+      const currentSettings = settingsRef.current;
+      const existing = currentTxs.find((t) => t.id === transactionId);
       if (!existing) return;
 
       let nextSettings: AppSettings | undefined;
       if (refundBankBalance && existing.type === 'payment' && existing.deductFromBank) {
         nextSettings = {
-          ...settings,
-          bankBalance: roundMoney(settings.bankBalance + existing.amount),
+          ...currentSettings,
+          bankBalance: roundMoney(currentSettings.bankBalance + existing.amount),
           bankUpdatedAt: new Date().toISOString(),
         };
       }
 
       await deleteTransactionLocal(transactionId, nextSettings);
       if (nextSettings) {
-        setSettings(nextSettings);
+        commitSettings(nextSettings);
       }
-      setTransactions((prev) => prev.filter((t) => t.id !== transactionId));
+      commitTransactions(currentTxs.filter((t) => t.id !== transactionId));
     },
-    [transactions, settings]
+    [commitSettings, commitTransactions]
   );
 
-  const restoreBackup = useCallback(async (payload: BackupPayload) => {
-    const sortedCards = [...payload.cards].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const sortedTxs = [...payload.transactions].sort((a, b) => {
-      const cmp = b.date.localeCompare(a.date);
-      return cmp !== 0 ? cmp : b.createdAt.localeCompare(a.createdAt);
-    });
+  const restoreBackup = useCallback(
+    async (payload: BackupPayload) => {
+      const sortedCards = [...payload.cards].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      const sortedTxs = sortTransactions(payload.transactions);
 
-    await replaceAllLocalData({
-      settings: payload.settings,
-      cards: sortedCards,
-      transactions: sortedTxs,
-    });
+      await replaceAllLocalData({
+        settings: payload.settings,
+        cards: sortedCards,
+        transactions: sortedTxs,
+      });
 
-    setSettings(payload.settings);
-    setCards(sortedCards);
-    setTransactions(sortedTxs);
-  }, []);
+      commitSettings(payload.settings);
+      commitCards(sortedCards);
+      commitTransactions(sortedTxs);
+    },
+    [commitSettings, commitCards, commitTransactions]
+  );
 
   const loadSampleData = useCallback(async () => {
-    const sample = createSampleDataset(settings.theme);
+    const sample = createSampleDataset(settingsRef.current.theme);
     await replaceAllLocalData(sample);
-    setSettings(sample.settings);
-    setCards(sample.cards);
-    setTransactions(
-      [...sample.transactions].sort((a, b) => {
-        const cmp = b.date.localeCompare(a.date);
-        return cmp !== 0 ? cmp : b.createdAt.localeCompare(a.createdAt);
-      })
-    );
-  }, [settings.theme]);
+    commitSettings(sample.settings);
+    commitCards(sample.cards);
+    commitTransactions(sample.transactions);
+  }, [commitSettings, commitCards, commitTransactions]);
 
   const clearAllData = useCallback(async () => {
+    const current = settingsRef.current;
     const resetSettings: AppSettings = {
       ...DEFAULT_SETTINGS,
-      currency: settings.currency,
-      theme: settings.theme,
+      currency: current.currency,
+      theme: current.theme,
       bankUpdatedAt: new Date().toISOString(),
     };
     await replaceAllLocalData({
@@ -282,10 +316,10 @@ export function useFinanceStore() {
       cards: [],
       transactions: [],
     });
-    setSettings(resetSettings);
-    setCards([]);
-    setTransactions([]);
-  }, [settings.currency, settings.theme]);
+    commitSettings(resetSettings);
+    commitCards([]);
+    commitTransactions([]);
+  }, [commitSettings, commitCards, commitTransactions]);
 
   return {
     isLoading,

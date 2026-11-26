@@ -6,7 +6,7 @@ import type {
   TransactionType,
 } from '../../types/finance';
 import type {TransactionInput} from '../../hooks/useFinanceStore';
-import {getTodayDateString, roundMoney} from '../../utils/financeEngine';
+import {getTodayDateString, isValidCalendarDate, roundMoney} from '../../utils/financeEngine';
 import {formatMoney, formatShortDate, getCurrencySymbol} from '../../utils/formatters';
 import {DialogShell} from '../ui/DialogShell';
 
@@ -81,10 +81,12 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     [cardSummaries, cardId]
   );
 
-  const unpaidStatements = useMemo(() => {
+  const selectableStatements = useMemo(() => {
     if (!selectedCardSummary) return [];
-    return selectedCardSummary.generatedStatements.filter((s) => s.remainingAmount > 0);
-  }, [selectedCardSummary]);
+    return selectedCardSummary.generatedStatements.filter(
+      (s) => s.remainingAmount > 0 || (statementCycleKey && s.cycleKey === statementCycleKey)
+    );
+  }, [selectedCardSummary, statementCycleKey]);
 
   const parsedAmount = Number(amountInput);
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
@@ -136,18 +138,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       return;
     }
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('Please choose a valid transaction date.');
-      return;
-    }
-    const [y, m, d] = date.split('-').map(Number);
-    const checkDate = new Date(y, m - 1, d);
-    if (
-      checkDate.getFullYear() !== y ||
-      checkDate.getMonth() + 1 !== m ||
-      checkDate.getDate() !== d
-    ) {
-      setError('The entered calendar date is invalid.');
+    if (!isValidCalendarDate(date)) {
+      setError('Please choose a valid calendar date.');
       return;
     }
 
@@ -355,7 +347,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         {/* Payment-specific options */}
         {type === 'payment' && (
           <div className="space-y-3">
-            {unpaidStatements.length > 0 && (
+            {selectableStatements.length > 0 && (
               <div>
                 <label
                   htmlFor="tx-cycle-select"
@@ -370,11 +362,14 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                   className="w-full min-h-[46px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none"
                 >
                   <option value="">Auto-apply to oldest unpaid bill first</option>
-                  {unpaidStatements.map((stmt) => (
+                  {selectableStatements.map((stmt) => (
                     <option key={stmt.cycleKey} value={stmt.cycleKey}>
                       Statement {formatShortDate(stmt.statementDate)} — Due{' '}
-                      {formatShortDate(stmt.dueDate)} ({formatMoney(stmt.remainingAmount, currency)}{' '}
-                      left)
+                      {formatShortDate(stmt.dueDate)} (
+                      {stmt.remainingAmount > 0
+                        ? `${formatMoney(stmt.remainingAmount, currency)} left`
+                        : 'Settled'}
+                      )
                     </option>
                   ))}
                 </select>
@@ -396,6 +391,15 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                   {deductFromBank && amountValid ? (
                     <>
                       Bank balance updates to{' '}
+                      <span className="font-mono tabular-nums font-medium text-m3-on-surface">
+                        {formatMoney(projectedBankAfterPayment, currency)}
+                      </span>
+                    </>
+                  ) : !deductFromBank &&
+                    editingTransaction?.type === 'payment' &&
+                    editingTransaction.deductFromBank ? (
+                    <>
+                      Bank balance will be refunded to{' '}
                       <span className="font-mono tabular-nums font-medium text-m3-on-surface">
                         {formatMoney(projectedBankAfterPayment, currency)}
                       </span>

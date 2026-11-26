@@ -11,7 +11,19 @@ import type {
 
 export function roundMoney(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  const sign = value < 0 ? -1 : 1;
+  const rounded = sign * (Math.round(Math.abs(value) * 100 + 1e-9) / 100);
+  return rounded === 0 ? 0 : rounded;
+}
+
+export function isValidCalendarDate(dateStr: string): boolean {
+  if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return false;
+  }
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() + 1 === m && dt.getDate() === d;
 }
 
 export function getTodayDateString(now: Date = new Date()): string {
@@ -364,10 +376,13 @@ export function computeCardSummary(
   );
 
   // Net unbilled spend = current open cycle remaining + any future-dated cycles remaining
+  const unbilledCycles = allStatements.filter((s) => !s.isGenerated);
   const futureUnbilledAmount = roundMoney(
-    allStatements
-      .filter((s) => !s.isGenerated)
-      .reduce((acc, stmt) => acc + stmt.remainingAmount, 0)
+    unbilledCycles.reduce((acc, stmt) => acc + stmt.remainingAmount, 0)
+  );
+  const unbilledTransactionCount = unbilledCycles.reduce(
+    (acc, stmt) => acc + stmt.transactionCount,
+    0
   );
 
   // Earliest due date among unpaid generated statements, otherwise current cycle's due date
@@ -402,6 +417,7 @@ export function computeCardSummary(
     generatedStatements,
     upcomingBillAmount,
     currentUnbilledAmount: futureUnbilledAmount,
+    unbilledTransactionCount,
     nextDueDate,
     nextStatementDate: currentCycle.statementDate,
   };
