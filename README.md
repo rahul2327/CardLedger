@@ -161,7 +161,9 @@ The goal is to provide a lightweight, privacy-focused alternative to complicated
 
 ## 📄 License
 
-Add your preferred open-source license here before distributing the project under an open-source license.
+CardLedger is licensed under the GNU General Public License v2.0.
+
+See the [LICENSE](LICENSE) file for details.
 
 ---
 
