@@ -1,5 +1,6 @@
 import {useEffect} from 'react';
 import type {ThemeMode} from '../types/finance';
+import {syncNativeSystemBars} from '../utils/nativeAndroid';
 
 const LIGHT_THEME_COLOR = '#F7FAF9';
 const DARK_THEME_COLOR = '#0F1514';
@@ -12,7 +13,9 @@ export function useThemeEffect(theme: ThemeMode): void {
       const shouldBeDark = theme === 'dark' || (theme === 'system' && mediaQuery.matches);
       document.documentElement.classList.toggle('dark', shouldBeDark);
       const color = shouldBeDark ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
-      let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]#dynamic-theme-color');
+      let meta = document.querySelector<HTMLMetaElement>(
+        'meta[name="theme-color"]#dynamic-theme-color'
+      );
       if (!meta) {
         meta = document.createElement('meta');
         meta.name = 'theme-color';
@@ -20,6 +23,7 @@ export function useThemeEffect(theme: ThemeMode): void {
         document.head.appendChild(meta);
       }
       meta.content = color;
+      void syncNativeSystemBars(shouldBeDark);
     };
 
     applyTheme();

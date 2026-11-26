@@ -6,3 +6,13 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Android & Release Signing Secrets
+android/keystore.properties
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+*.jks
+*.keystore

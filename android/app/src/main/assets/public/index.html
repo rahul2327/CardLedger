@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>CardLedger — Offline Credit Card &amp; Bank Tracker</title>
+    <meta
+      name="description"
+      content="100% offline personal finance tracker for managing credit card spending, billing cycles, upcoming bills, and bank balances locally on your device."
+    />
+    <meta property="og:title" content="CardLedger — Offline Credit Card &amp; Bank Tracker" />
+    <meta
+      property="og:description"
+      content="100% offline personal finance tracker for managing credit card spending, billing cycles, upcoming bills, and bank balances locally on your device."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#F7FAF9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0F1514" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="CardLedger" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('cardledger_theme') || 'system';
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved === 'dark' || (saved === 'system' && prefersDark);
+          document.documentElement.classList.toggle('dark', isDark);
+          var meta = document.createElement('meta');
+          meta.name = 'theme-color';
+          meta.id = 'dynamic-theme-color';
+          meta.content = isDark ? '#0F1514' : '#F7FAF9';
+          document.head.appendChild(meta);
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-fAkwBKDc.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B3YO7DTy.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
+  <body class="bg-m3-surface text-m3-on-surface antialiased selection:bg-m3-primary-container selection:text-m3-on-primary-container">
+    <div id="root"></div>
+  </body>
+</html>

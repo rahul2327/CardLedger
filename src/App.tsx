@@ -1,4 +1,5 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {App as CapApp} from '@capacitor/app';
 import {
   CreditCard as CreditCardIcon,
   History,
@@ -29,6 +30,12 @@ import {useOnlineStatus} from './hooks/usePWAInstall';
 import {useThemeEffect} from './hooks/useTheme';
 import type {CreditCard, NavTab, ThemeMode, Transaction} from './types/finance';
 import {formatMoney, formatShortDate} from './utils/formatters';
+import {
+  hideNativeSplash,
+  initNativeKeyboardHandling,
+  isNativeAndroid,
+  isNativePlatform,
+} from './utils/nativeAndroid';
 
 const NAV_ITEMS: Array<{id: NavTab; label: string; icon: React.ComponentType<{className?: string}>}> = [
   {id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard},
@@ -74,6 +81,10 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const tabHistoryRef = useRef<NavTab[]>([]);
+  const activeTabRef = useRef<NavTab>('dashboard');
+  const lastBackPressRef = useRef<number>(0);
+  const splashHiddenRef = useRef<boolean>(false);
 
   // Modals
   const [bankModalOpen, setBankModalOpen] = useState(false);
@@ -95,6 +106,85 @@ export default function App() {
   const notify = useCallback((message: string) => {
     setToastMessage(message);
   }, []);
+
+  const navigateToTab = useCallback((nextTab: NavTab) => {
+    setActiveTab((prev) => {
+      if (prev === nextTab) return prev;
+      tabHistoryRef.current = [...tabHistoryRef.current.slice(-10), prev];
+      activeTabRef.current = nextTab;
+      return nextTab;
+    });
+  }, []);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  // Hide native Android splash screen once IndexedDB hydration completes
+  useEffect(() => {
+    if (!store.isLoading && !splashHiddenRef.current) {
+      splashHiddenRef.current = true;
+      void hideNativeSplash();
+    }
+  }, [store.isLoading]);
+
+  // Coordinate Android soft keyboard focus scrolling
+  useEffect(() => {
+    return initNativeKeyboardHandling();
+  }, []);
+
+  // Native Android back button & gesture handling (closes modals -> navigates tab history -> double-back to exit)
+  useEffect(() => {
+    if (!isNativeAndroid()) return;
+    let disposed = false;
+    let listenerHandle: {remove: () => Promise<void>} | null = null;
+
+    CapApp.addListener('backButton', () => {
+      // 1. If any Material 3 dialog is open, dismiss it via Escape handler
+      if (document.querySelector('[role="dialog"]')) {
+        window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+        return;
+      }
+
+      // 2. Navigate back through screen history before allowing exit
+      if (tabHistoryRef.current.length > 0) {
+        const previousTab = tabHistoryRef.current.pop()!;
+        activeTabRef.current = previousTab;
+        setActiveTab(previousTab);
+        return;
+      }
+
+      if (activeTabRef.current !== 'dashboard') {
+        activeTabRef.current = 'dashboard';
+        setActiveTab('dashboard');
+        return;
+      }
+
+      // 3. On Dashboard, require double-back within 2 seconds to prevent accidental exit
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 2000) {
+        void CapApp.exitApp();
+      } else {
+        lastBackPressRef.current = now;
+        notify('Press back again to exit CardLedger');
+      }
+    })
+      .then((handle) => {
+        if (disposed) {
+          void handle.remove();
+        } else {
+          listenerHandle = handle;
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      if (listenerHandle) {
+        void listenerHandle.remove();
+      }
+    };
+  }, [notify]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -159,7 +249,7 @@ export default function App() {
 
   const handleSelectCardDetail = (cardId: string) => {
     setSelectedCardId(cardId);
-    setActiveTab('cards');
+    navigateToTab('cards');
   };
 
   const cardTxCountToDelete = cardToDelete
@@ -206,7 +296,7 @@ export default function App() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => navigateToTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`w-full min-h-[48px] px-4 rounded-full flex items-center gap-3.5 text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
@@ -264,8 +354,8 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Offline Mode Notice (only visible when actually offline) */}
-        {!isOnline && (
+        {/* Offline Mode Notice (web browsers only; native Android operates offline by default) */}
+        {!isNativePlatform() && !isOnline && (
           <div className="bg-m3-tertiary-container text-m3-on-tertiary-container px-4 py-2 text-xs font-medium flex items-center justify-center gap-2">
             <WifiOff className="w-3.5 h-3.5 shrink-0" />
             <span>Working offline — all changes are saved locally on this device.</span>
@@ -369,7 +459,7 @@ export default function App() {
                   settings={store.settings}
                   summary={store.summary}
                   transactions={store.transactions}
-                  onNavigate={setActiveTab}
+                  onNavigate={navigateToTab}
                   onSelectCardDetail={handleSelectCardDetail}
                   onEditBankBalance={() => setBankModalOpen(true)}
                   onAddCard={openAddCard}
@@ -476,7 +566,7 @@ export default function App() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => navigateToTab(item.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className="min-h-[48px] flex flex-col items-center justify-center gap-1 transition-colors"
               >
