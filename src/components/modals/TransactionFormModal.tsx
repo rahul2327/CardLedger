@@ -1,13 +1,15 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import {ArrowDownLeft, CreditCard, Landmark, Sparkles} from 'lucide-react';
 import type {
   BankAccount,
   CardSummary,
+  CashbackDestination,
   CurrencyCode,
   SpendingCategory,
   Transaction,
   TransactionType,
 } from '../../types/finance';
-import type {TransactionInput} from '../../hooks/useFinanceStore';
+import {getTransactionBankEffect, type TransactionInput} from '../../hooks/useFinanceStore';
 import {
   SPENDING_CATEGORIES,
   inferSpendingCategory,
@@ -20,9 +22,11 @@ import {DialogShell} from '../ui/DialogShell';
 export interface TransactionModalPreset {
   type?: TransactionType;
   cardId?: string;
+  bankAccountId?: string;
   amount?: number;
   description?: string;
   statementCycleKey?: string;
+  cashbackDestination?: CashbackDestination;
 }
 
 interface TransactionFormModalProps {
@@ -35,6 +39,15 @@ interface TransactionFormModalProps {
   preset?: TransactionModalPreset | null;
   onSave: (input: TransactionInput) => Promise<void>;
 }
+
+const AUTO_DESCRIPTIONS: Record<TransactionType, string> = {
+  spend: '',
+  bank_spend: '',
+  payment: 'Credit Card Bill Payment',
+  cashback: 'Credit Card Cashback',
+};
+
+const AUTO_DESCRIPTION_SET = new Set(Object.values(AUTO_DESCRIPTIONS));
 
 export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   open,
@@ -56,8 +69,12 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const [statementCycleKey, setStatementCycleKey] = useState<string>('');
   const [deductFromBank, setDeductFromBank] = useState(true);
   const [bankAccountId, setBankAccountId] = useState('');
+  const [cashbackDestination, setCashbackDestination] = useState<CashbackDestination>('statement');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const hasCards = cardSummaries.length > 0;
+  const hasBankAccounts = bankAccounts.length > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -65,14 +82,19 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
     if (editingTransaction) {
       setType(editingTransaction.type);
-      setCardId(editingTransaction.cardId);
+      setCardId(editingTransaction.cardId || cardSummaries[0]?.card.id || '');
       setAmountInput(String(editingTransaction.amount));
       setDescription(editingTransaction.description);
       setCategory(resolveTransactionCategory(editingTransaction));
       setCategoryManuallyPicked(true);
       setDate(editingTransaction.date);
       setStatementCycleKey(editingTransaction.statementCycleKey ?? '');
-      setDeductFromBank(Boolean(editingTransaction.deductFromBank) && bankAccounts.length > 0);
+      const shouldDefaultDeduct =
+        editingTransaction.type === 'bank_spend'
+          ? editingTransaction.deductFromBank !== false
+          : Boolean(editingTransaction.deductFromBank);
+      setDeductFromBank(shouldDefaultDeduct && bankAccounts.length > 0);
+      setCashbackDestination(editingTransaction.cashbackDestination ?? 'statement');
       const existingAccStillPresent =
         editingTransaction.bankAccountId &&
         bankAccounts.some((a) => a.id === editingTransaction.bankAccountId);
@@ -80,10 +102,11 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         existingAccStillPresent ? editingTransaction.bankAccountId! : defaultAccountId
       );
     } else {
-      const initialType = preset?.type ?? 'spend';
+      const requestedType = preset?.type ?? (hasCards ? 'spend' : 'bank_spend');
+      const initialType: TransactionType =
+        !hasCards && requestedType !== 'bank_spend' ? 'bank_spend' : requestedType;
       const defaultCardId = preset?.cardId ?? cardSummaries[0]?.card.id ?? '';
-      const initialDesc =
-        preset?.description ?? (initialType === 'payment' ? 'Credit Card Bill Payment' : '');
+      const initialDesc = preset?.description ?? AUTO_DESCRIPTIONS[initialType];
       setType(initialType);
       setCardId(defaultCardId);
       setAmountInput(preset?.amount ? String(preset.amount) : '');
@@ -93,11 +116,14 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       setDate(getTodayDateString());
       setStatementCycleKey(preset?.statementCycleKey ?? '');
       setDeductFromBank(bankAccounts.length > 0);
-      setBankAccountId(defaultAccountId);
+      setCashbackDestination(preset?.cashbackDestination ?? 'statement');
+      const presetAccPresent =
+        preset?.bankAccountId && bankAccounts.some((a) => a.id === preset.bankAccountId);
+      setBankAccountId(presetAccPresent ? preset!.bankAccountId! : defaultAccountId);
     }
     setError(null);
     setSaving(false);
-  }, [open, editingTransaction, preset, cardSummaries, bankAccounts]);
+  }, [open, editingTransaction, preset, cardSummaries, bankAccounts, hasCards]);
 
   const selectedCardSummary = useMemo(
     () => cardSummaries.find((cs) => cs.card.id === cardId) ?? null,
@@ -109,13 +135,9 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     [bankAccounts, bankAccountId]
   );
 
-  const previousBankAccount = useMemo(() => {
-    if (!editingTransaction || editingTransaction.type !== 'payment' || !editingTransaction.deductFromBank) {
-      return null;
-    }
-    return editingTransaction.bankAccountId
-      ? bankAccounts.find((a) => a.id === editingTransaction.bankAccountId) ?? null
-      : bankAccounts[0] ?? null;
+  const previousBankEffect = useMemo(() => {
+    if (!editingTransaction) return null;
+    return getTransactionBankEffect(editingTransaction, bankAccounts);
   }, [editingTransaction, bankAccounts]);
 
   const selectableStatements = useMemo(() => {
@@ -128,31 +150,55 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const parsedAmount = Number(amountInput);
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
 
-  // Projected balance preview for the selected bank account
+  // Compute exact projected balance for the selected bank account
   const projectedSelectedAccountBalance = useMemo(() => {
     if (!selectedBankAccount) return 0;
     let balance = selectedBankAccount.balance;
-    if (
-      previousBankAccount &&
-      previousBankAccount.id === selectedBankAccount.id &&
-      editingTransaction
-    ) {
-      balance = roundMoney(balance + editingTransaction.amount);
+
+    // Reverse old bank effect if it touched this same account
+    if (previousBankEffect && previousBankEffect.account.id === selectedBankAccount.id) {
+      balance = roundMoney(balance - previousBankEffect.delta);
     }
-    if (type === 'payment' && deductFromBank && amountValid) {
-      balance = roundMoney(balance - parsedAmount);
+
+    // Apply prospective new bank effect
+    if (amountValid) {
+      if ((type === 'payment' || type === 'bank_spend') && deductFromBank) {
+        balance = roundMoney(balance - parsedAmount);
+      } else if (type === 'cashback' && cashbackDestination === 'bank') {
+        balance = roundMoney(balance + parsedAmount);
+      }
     }
+
     return balance;
-  }, [selectedBankAccount, previousBankAccount, editingTransaction, type, deductFromBank, amountValid, parsedAmount]);
+  }, [
+    selectedBankAccount,
+    previousBankEffect,
+    type,
+    deductFromBank,
+    cashbackDestination,
+    amountValid,
+    parsedAmount,
+  ]);
 
   const handleTypeChange = (nextType: TransactionType) => {
+    if (nextType !== 'bank_spend' && !hasCards) {
+      setError('Add a credit card first to log card spending, payments, or cashback.');
+      return;
+    }
+    if (nextType === 'bank_spend' && !hasBankAccounts) {
+      setError('Add a bank account first from Dashboard to log direct Bank / UPI spending.');
+      return;
+    }
+
     setType(nextType);
     setError(null);
     if (!editingTransaction) {
-      if (nextType === 'payment' && description.trim() === '') {
-        setDescription('Credit Card Bill Payment');
-      } else if (nextType === 'spend' && description === 'Credit Card Bill Payment') {
-        setDescription('');
+      const trimmed = description.trim();
+      if (AUTO_DESCRIPTION_SET.has(trimmed)) {
+        setDescription(AUTO_DESCRIPTIONS[nextType]);
+      }
+      if (nextType === 'bank_spend' && hasBankAccounts) {
+        setDeductFromBank(true);
       }
     }
   };
@@ -160,8 +206,18 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!cardId) {
+    if (type !== 'bank_spend' && !cardId) {
       setError('Please select a credit card.');
+      return;
+    }
+
+    if (type === 'bank_spend' && !selectedBankAccount) {
+      setError('Please add a bank account first to log Bank / UPI spending.');
+      return;
+    }
+
+    if (type === 'cashback' && cashbackDestination === 'bank' && !selectedBankAccount) {
+      setError('Please add a bank account first, or choose Reduce Card Bill.');
       return;
     }
 
@@ -188,18 +244,34 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
     setSaving(true);
     try {
-      const shouldDeduct = type === 'payment' && deductFromBank && Boolean(selectedBankAccount);
+      const shouldDeduct =
+        (type === 'payment' || type === 'bank_spend') &&
+        deductFromBank &&
+        Boolean(selectedBankAccount);
+
+      const resolvedBankId =
+        type === 'bank_spend' ||
+        (type === 'payment' && shouldDeduct) ||
+        (type === 'cashback' && cashbackDestination === 'bank')
+          ? selectedBankAccount?.id
+          : undefined;
+
       await onSave({
         id: editingTransaction?.id,
-        cardId,
+        cardId: type === 'bank_spend' ? '' : cardId,
         type,
         amount: roundMoney(num),
         description: trimmedDesc,
-        category: type === 'spend' ? category : undefined,
+        category: type === 'spend' || type === 'bank_spend' ? category : undefined,
         date,
-        statementCycleKey: type === 'payment' && statementCycleKey ? statementCycleKey : undefined,
-        deductFromBank: type === 'payment' ? shouldDeduct : undefined,
-        bankAccountId: shouldDeduct && selectedBankAccount ? selectedBankAccount.id : undefined,
+        statementCycleKey:
+          (type === 'payment' || (type === 'cashback' && cashbackDestination === 'statement')) &&
+          statementCycleKey
+            ? statementCycleKey
+            : undefined,
+        deductFromBank: type === 'payment' || type === 'bank_spend' ? shouldDeduct : undefined,
+        bankAccountId: resolvedBankId,
+        cashbackDestination: type === 'cashback' ? cashbackDestination : undefined,
       });
       onClose();
     } catch {
@@ -211,93 +283,151 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
 
   const symbol = getCurrencySymbol(currency);
 
+  const modalTitle = editingTransaction
+    ? editingTransaction.type === 'payment'
+      ? 'Edit Card Payment'
+      : editingTransaction.type === 'bank_spend'
+        ? 'Edit Bank / UPI Spend'
+        : editingTransaction.type === 'cashback'
+          ? 'Edit Cashback'
+          : 'Edit Card Spend'
+    : type === 'payment'
+      ? 'Record Card Payment'
+      : type === 'bank_spend'
+        ? 'Add Bank / UPI Spend'
+        : type === 'cashback'
+          ? 'Record Card Cashback'
+          : 'Add Card Spend';
+
+  const modalSubtitle =
+    type === 'payment'
+      ? 'Payments settle generated bills first and immediately reduce card outstanding.'
+      : type === 'bank_spend'
+        ? 'Track direct bank account or UPI spending when credit card UPI is not accepted.'
+        : type === 'cashback'
+          ? 'Credit cashback toward your card statement bill or directly into a bank account.'
+          : 'Automatically assigned to the matching billing cycle based on transaction date.';
+
+  const submitLabel = saving
+    ? 'Saving...'
+    : editingTransaction
+      ? 'Save Changes'
+      : type === 'payment'
+        ? 'Record Payment'
+        : type === 'bank_spend'
+          ? 'Add Bank Spend'
+          : type === 'cashback'
+            ? 'Add Cashback'
+            : 'Add Spending';
+
+  const typeOptions: Array<{
+    id: TransactionType;
+    label: string;
+    icon: React.ComponentType<{className?: string}>;
+    disabled: boolean;
+  }> = [
+    {id: 'spend', label: 'Card Spend', icon: CreditCard, disabled: !hasCards},
+    {id: 'bank_spend', label: 'Bank / UPI', icon: Landmark, disabled: !hasBankAccounts},
+    {id: 'payment', label: 'Pay Bill', icon: ArrowDownLeft, disabled: !hasCards},
+    {id: 'cashback', label: 'Cashback', icon: Sparkles, disabled: !hasCards},
+  ];
+
+  const isSpendLike = type === 'spend' || type === 'bank_spend';
+
   return (
-    <DialogShell
-      open={open}
-      onClose={onClose}
-      title={
-        editingTransaction
-          ? editingTransaction.type === 'payment'
-            ? 'Edit Card Payment'
-            : 'Edit Spending'
-          : type === 'payment'
-            ? 'Record Card Payment'
-            : 'Add Spending'
-      }
-      subtitle={
-        type === 'payment'
-          ? 'Payments settle generated bills first and immediately reduce card outstanding.'
-          : 'Automatically assigned to the matching billing cycle based on transaction date.'
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-        {/* Material 3 Segmented Type Switcher */}
+    <DialogShell open={open} onClose={onClose} title={modalTitle} subtitle={modalSubtitle}>
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {/* Material 3 2x2 Segmented Type Switcher */}
         <div
-          className="grid grid-cols-2 p-1 rounded-full bg-m3-surface-container border border-m3-outline-variant/60"
+          className="grid grid-cols-2 gap-1 p-1 rounded-[20px] bg-m3-surface-container border border-m3-outline-variant/60"
           role="tablist"
           aria-label="Transaction type"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={type === 'spend'}
-            onClick={() => handleTypeChange('spend')}
-            className={`h-10 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap ${
-              type === 'spend'
-                ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
-                : 'text-m3-on-surface-variant hover:text-m3-on-surface'
-            }`}
-          >
-            Card Spending
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={type === 'payment'}
-            onClick={() => handleTypeChange('payment')}
-            className={`h-10 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap ${
-              type === 'payment'
-                ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
-                : 'text-m3-on-surface-variant hover:text-m3-on-surface'
-            }`}
-          >
-            Card Payment
-          </button>
+          {typeOptions.map((opt) => {
+            const Icon = opt.icon;
+            const active = type === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-disabled={opt.disabled}
+                onClick={() => handleTypeChange(opt.id)}
+                className={`h-10 px-2.5 rounded-2xl text-[13px] font-medium inline-flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
+                  active
+                    ? 'bg-m3-secondary-container text-m3-on-secondary-container shadow-xs'
+                    : opt.disabled
+                      ? 'text-m3-on-surface-variant/45 cursor-not-allowed'
+                      : 'text-m3-on-surface-variant hover:text-m3-on-surface'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{opt.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Credit Card Selector */}
-        <div>
-          <label
-            htmlFor="tx-card-select"
-            className="block text-sm font-medium text-m3-on-surface mb-1.5"
-          >
-            Credit Card
-          </label>
-          <select
-            id="tx-card-select"
-            value={cardId}
-            onChange={(e) => {
-              setCardId(e.target.value);
-              setStatementCycleKey('');
-              setError(null);
-            }}
-            className="w-full min-h-[48px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none transition-colors"
-          >
-            {cardSummaries.map((cs) => (
-              <option key={cs.card.id} value={cs.card.id}>
-                {cs.card.name}
-                {cs.card.lastFour ? ` ••${cs.card.lastFour}` : ''} — Outstanding{' '}
-                {formatMoney(cs.currentOutstanding, currency)}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Account Selector: Credit Card OR Bank Account */}
+        {type === 'bank_spend' ? (
+          <div>
+            <label
+              htmlFor="tx-bank-spend-select"
+              className="block text-sm font-medium text-m3-on-surface mb-1.5"
+            >
+              Bank Account
+            </label>
+            <select
+              id="tx-bank-spend-select"
+              value={selectedBankAccount?.id ?? ''}
+              onChange={(e) => {
+                setBankAccountId(e.target.value);
+                setError(null);
+              }}
+              className="w-full min-h-[48px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none transition-colors"
+            >
+              {bankAccounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.name} — Balance {formatMoney(acc.balance, currency)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <label
+              htmlFor="tx-card-select"
+              className="block text-sm font-medium text-m3-on-surface mb-1.5"
+            >
+              Credit Card
+            </label>
+            <select
+              id="tx-card-select"
+              value={cardId}
+              onChange={(e) => {
+                setCardId(e.target.value);
+                setStatementCycleKey('');
+                setError(null);
+              }}
+              className="w-full min-h-[48px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none transition-colors"
+            >
+              {cardSummaries.map((cs) => (
+                <option key={cs.card.id} value={cs.card.id}>
+                  {cs.card.name}
+                  {cs.card.lastFour ? ` ••${cs.card.lastFour}` : ''} — Outstanding{' '}
+                  {formatMoney(cs.currentOutstanding, currency)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Amount Input + Quick-fill actions for Payments */}
         <div>
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <label htmlFor="tx-amount-input" className="text-sm font-medium text-m3-on-surface">
-              Amount
+              {type === 'cashback' ? 'Cashback Amount' : 'Amount'}
             </label>
             {type === 'payment' && selectedCardSummary && (
               <div className="flex items-center gap-2">
@@ -311,7 +441,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                   </button>
                 )}
                 {selectedCardSummary.currentOutstanding > 0 &&
-                  selectedCardSummary.currentOutstanding !== selectedCardSummary.upcomingBillAmount && (
+                  selectedCardSummary.currentOutstanding !==
+                    selectedCardSummary.upcomingBillAmount && (
                     <button
                       type="button"
                       onClick={() => setAmountInput(String(selectedCardSummary.currentOutstanding))}
@@ -362,13 +493,19 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
               onChange={(e) => {
                 const nextDesc = e.target.value;
                 setDescription(nextDesc);
-                if (type === 'spend' && !categoryManuallyPicked) {
+                if (isSpendLike && !categoryManuallyPicked) {
                   setCategory(inferSpendingCategory(nextDesc));
                 }
                 setError(null);
               }}
               placeholder={
-                type === 'payment' ? 'e.g., NEFT Bill Settlement' : 'e.g., Groceries, Fuel, Dining'
+                type === 'payment'
+                  ? 'e.g., NEFT Bill Settlement'
+                  : type === 'bank_spend'
+                    ? 'e.g., Kirana UPI, Auto, Local Shop'
+                    : type === 'cashback'
+                      ? 'e.g., Axis Ace 5% Cashback'
+                      : 'e.g., Groceries, Fuel, Dining'
               }
               className="w-full min-h-[48px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface placeholder:text-m3-on-surface-variant/60 text-sm focus:border-m3-primary focus:outline-none transition-colors"
             />
@@ -394,8 +531,8 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
           </div>
         </div>
 
-        {/* Spending Category Picker */}
-        {type === 'spend' && (
+        {/* Spending Category Picker (for both Card Spend & Bank / UPI Spend) */}
+        {isSpendLike && (
           <div>
             <p className="block text-sm font-medium text-m3-on-surface mb-2">Category</p>
             <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Spending category">
@@ -426,6 +563,200 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Bank / UPI Spend balance deduction toggle */}
+        {type === 'bank_spend' && selectedBankAccount && (
+          <div className="p-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60">
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={deductFromBank}
+                onChange={(e) => setDeductFromBank(e.target.checked)}
+                className="mt-0.5 h-5 w-5 rounded border-m3-outline accent-m3-primary shrink-0"
+              />
+              <div className="text-sm min-w-0 flex-1">
+                <p className="font-medium text-m3-on-surface">
+                  Deduct from {selectedBankAccount.name}
+                </p>
+                <p className="mt-0.5 text-xs text-m3-on-surface-variant">
+                  {deductFromBank && amountValid ? (
+                    <>
+                      {selectedBankAccount.name} updates to{' '}
+                      <span
+                        className={`font-mono tabular-nums font-medium ${
+                          projectedSelectedAccountBalance < 0
+                            ? 'text-m3-error'
+                            : 'text-m3-on-surface'
+                        }`}
+                      >
+                        {formatMoney(projectedSelectedAccountBalance, currency)}
+                      </span>
+                      {previousBankEffect &&
+                        previousBankEffect.account.id !== selectedBankAccount.id && (
+                          <>
+                            {' '}
+                            ({previousBankEffect.account.name} adjusted by{' '}
+                            {previousBankEffect.delta < 0 ? '+' : '−'}
+                            {formatMoney(Math.abs(previousBankEffect.delta), currency)})
+                          </>
+                        )}
+                    </>
+                  ) : !deductFromBank && previousBankEffect ? (
+                    <>
+                      {previousBankEffect.account.name} will be adjusted by{' '}
+                      <span className="font-mono tabular-nums font-medium text-m3-on-surface">
+                        {previousBankEffect.delta < 0 ? '+' : '−'}
+                        {formatMoney(Math.abs(previousBankEffect.delta), currency)}
+                      </span>
+                    </>
+                  ) : (
+                    'Uncheck if you already subtracted this UPI expense manually.'
+                  )}
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
+
+        {/* Cashback-specific destination options */}
+        {type === 'cashback' && (
+          <div className="space-y-3">
+            <div>
+              <p className="block text-sm font-medium text-m3-on-surface mb-1.5">
+                Where is cashback credited?
+              </p>
+              <div
+                className="grid grid-cols-2 p-1 rounded-full bg-m3-surface-low border border-m3-outline-variant/60"
+                role="radiogroup"
+                aria-label="Cashback destination"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={cashbackDestination === 'statement'}
+                  onClick={() => {
+                    setCashbackDestination('statement');
+                    setError(null);
+                  }}
+                  className={`h-9 px-2.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                    cashbackDestination === 'statement'
+                      ? 'bg-m3-secondary-container text-m3-on-secondary-container'
+                      : 'text-m3-on-surface-variant hover:text-m3-on-surface'
+                  }`}
+                >
+                  Reduce Card Bill
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={cashbackDestination === 'bank'}
+                  onClick={() => {
+                    setCashbackDestination('bank');
+                    setError(null);
+                  }}
+                  className={`h-9 px-2.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${
+                    cashbackDestination === 'bank'
+                      ? 'bg-m3-secondary-container text-m3-on-secondary-container'
+                      : 'text-m3-on-surface-variant hover:text-m3-on-surface'
+                  }`}
+                >
+                  Credit to Bank
+                </button>
+              </div>
+            </div>
+
+            {cashbackDestination === 'statement' ? (
+              <div className="space-y-3">
+                {selectableStatements.length > 0 && (
+                  <div>
+                    <label
+                      htmlFor="tx-cb-cycle-select"
+                      className="block text-sm font-medium text-m3-on-surface mb-1.5"
+                    >
+                      Apply Cashback To Statement
+                    </label>
+                    <select
+                      id="tx-cb-cycle-select"
+                      value={statementCycleKey}
+                      onChange={(e) => setStatementCycleKey(e.target.value)}
+                      className="w-full min-h-[46px] px-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none"
+                    >
+                      <option value="">Auto-apply to oldest unpaid bill first</option>
+                      {selectableStatements.map((stmt) => (
+                        <option key={stmt.cycleKey} value={stmt.cycleKey}>
+                          Statement {formatShortDate(stmt.statementDate)} — Due{' '}
+                          {formatShortDate(stmt.dueDate)} (
+                          {stmt.remainingAmount > 0
+                            ? `${formatMoney(stmt.remainingAmount, currency)} left`
+                            : 'Settled'}
+                          )
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="p-3.5 rounded-2xl bg-m3-success-container/45 border border-m3-success/25 text-xs text-m3-on-surface">
+                  Reduces{' '}
+                  <span className="font-semibold">
+                    {selectedCardSummary?.card.name ?? 'this card'}
+                  </span>{' '}
+                  outstanding balance without touching your bank account balance.
+                </div>
+              </div>
+            ) : bankAccounts.length === 0 ? (
+              <div className="p-3.5 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60 text-xs text-m3-on-surface-variant">
+                Add a bank account from Dashboard to credit cashback directly to a bank account.
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-m3-surface-low border border-m3-outline-variant/60 space-y-2.5">
+                {bankAccounts.length > 1 && (
+                  <div>
+                    <label
+                      htmlFor="tx-cb-bank-select"
+                      className="block text-xs font-medium text-m3-on-surface-variant mb-1.5"
+                    >
+                      Credit To Bank Account
+                    </label>
+                    <select
+                      id="tx-cb-bank-select"
+                      value={selectedBankAccount?.id ?? ''}
+                      onChange={(e) => setBankAccountId(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 rounded-2xl bg-m3-surface border border-m3-outline-variant text-m3-on-surface text-sm focus:border-m3-primary focus:outline-none"
+                    >
+                      {bankAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} — {formatMoney(acc.balance, currency)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedBankAccount && (
+                  <p className="text-xs text-m3-on-surface-variant">
+                    {amountValid ? (
+                      <>
+                        {selectedBankAccount.name} updates to{' '}
+                        <span className="font-mono tabular-nums font-semibold text-m3-success">
+                          {formatMoney(projectedSelectedAccountBalance, currency)}
+                        </span>{' '}
+                        (card bill stays unchanged).
+                      </>
+                    ) : (
+                      <>
+                        Adds cashback directly to{' '}
+                        <span className="font-medium text-m3-on-surface">
+                          {selectedBankAccount.name}
+                        </span>{' '}
+                        without changing your card bill.
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -493,21 +824,22 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                           >
                             {formatMoney(projectedSelectedAccountBalance, currency)}
                           </span>
-                          {previousBankAccount &&
-                            previousBankAccount.id !== selectedBankAccount.id &&
-                            editingTransaction && (
+                          {previousBankEffect &&
+                            previousBankEffect.account.id !== selectedBankAccount.id && (
                               <>
                                 {' '}
-                                ({previousBankAccount.name} refunded{' '}
-                                {formatMoney(editingTransaction.amount, currency)})
+                                ({previousBankEffect.account.name} adjusted by{' '}
+                                {previousBankEffect.delta < 0 ? '+' : '−'}
+                                {formatMoney(Math.abs(previousBankEffect.delta), currency)})
                               </>
                             )}
                         </>
-                      ) : !deductFromBank && previousBankAccount && editingTransaction ? (
+                      ) : !deductFromBank && previousBankEffect ? (
                         <>
-                          {previousBankAccount.name} will be refunded{' '}
+                          {previousBankEffect.account.name} will be adjusted by{' '}
                           <span className="font-mono tabular-nums font-medium text-m3-on-surface">
-                            {formatMoney(editingTransaction.amount, currency)}
+                            {previousBankEffect.delta < 0 ? '+' : '−'}
+                            {formatMoney(Math.abs(previousBankEffect.delta), currency)}
                           </span>
                         </>
                       ) : (
@@ -559,13 +891,7 @@ export const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
             disabled={saving}
             className="h-10 px-5 rounded-full bg-m3-primary text-m3-on-primary text-[13px] font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
-            {saving
-              ? 'Saving...'
-              : editingTransaction
-                ? 'Save Changes'
-                : type === 'payment'
-                  ? 'Record Payment'
-                  : 'Add Spending'}
+            {submitLabel}
           </button>
         </div>
       </form>

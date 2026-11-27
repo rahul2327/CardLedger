@@ -24,7 +24,7 @@ import {HistoryScreen} from './components/screens/HistoryScreen';
 import {SettingsScreen} from './components/screens/SettingsScreen';
 import {AppLockOverlay} from './components/ui/AppLockOverlay';
 import {ConfirmDialog} from './components/ui/DialogShell';
-import {useFinanceStore} from './hooks/useFinanceStore';
+import {getTransactionBankEffect, useFinanceStore} from './hooks/useFinanceStore';
 import {useThemeEffect} from './hooks/useTheme';
 import type {CreditCard, NavTab, ThemeMode, Transaction} from './types/finance';
 import {
@@ -62,7 +62,7 @@ const PAGE_TITLES: Record<NavTab, {title: string; subtitle: string}> = {
   },
   history: {
     title: 'Transactions',
-    subtitle: 'Search, filter & manage every card entry',
+    subtitle: 'Card spends, bank UPI, cashback & payments',
   },
   settings: {
     title: 'Settings',
@@ -347,16 +347,24 @@ export default function App() {
 
   const openTransactionModal = useCallback(
     (preset?: TransactionModalPreset) => {
-      if (store.cards.length === 0) {
-        notify('Add a credit card first to log spending or payments.');
+      const hasCards = store.cards.length > 0;
+      const hasBanks = store.settings.bankAccounts.length > 0;
+      if (!hasCards && !hasBanks) {
+        notify('Add a credit card or bank account first to log transactions.');
         openAddCard();
         return;
       }
+      const fallbackType = hasCards ? 'spend' : 'bank_spend';
+      const resolvedPreset: TransactionModalPreset = preset
+        ? !hasCards && preset.type && preset.type !== 'bank_spend'
+          ? {...preset, type: 'bank_spend'}
+          : preset
+        : {type: fallbackType};
       setEditingTx(null);
-      setTxPreset(preset ?? {type: 'spend'});
+      setTxPreset(resolvedPreset);
       setTxModalOpen(true);
     },
-    [store.cards.length, notify, openAddCard]
+    [store.cards.length, store.settings.bankAccounts.length, notify, openAddCard]
   );
 
   const openEditTransaction = useCallback((tx: Transaction) => {
@@ -365,10 +373,14 @@ export default function App() {
     setTxModalOpen(true);
   }, []);
 
-  const requestDeleteTransaction = useCallback((tx: Transaction) => {
-    setRefundBankOnDelete(Boolean(tx.type === 'payment' && tx.deductFromBank));
-    setTxToDelete(tx);
-  }, []);
+  const requestDeleteTransaction = useCallback(
+    (tx: Transaction) => {
+      const bankEffect = getTransactionBankEffect(tx, store.settings.bankAccounts);
+      setRefundBankOnDelete(Boolean(bankEffect));
+      setTxToDelete(tx);
+    },
+    [store.settings.bankAccounts]
+  );
 
   const handleConfirmDeleteCard = async () => {
     if (!cardToDelete) return;
@@ -384,10 +396,18 @@ export default function App() {
 
   const handleConfirmDeleteTx = async () => {
     if (!txToDelete) return;
-    const isPayment = txToDelete.type === 'payment';
+    const deletedType = txToDelete.type;
     await store.deleteTransaction(txToDelete.id, refundBankOnDelete);
     setTxToDelete(null);
-    notify(isPayment ? 'Payment deleted.' : 'Spending entry deleted.');
+    notify(
+      deletedType === 'payment'
+        ? 'Payment deleted.'
+        : deletedType === 'cashback'
+          ? 'Cashback entry deleted.'
+          : deletedType === 'bank_spend'
+            ? 'Bank / UPI spend deleted.'
+            : 'Spending entry deleted.'
+    );
   };
 
   const handleSelectCardDetail = (cardId: string) => {
@@ -422,12 +442,18 @@ export default function App() {
           <button
             type="button"
             onClick={() =>
-              store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
+              store.cards.length === 0 && store.settings.bankAccounts.length === 0
+                ? openAddCard()
+                : openTransactionModal({type: store.cards.length > 0 ? 'spend' : 'bank_spend'})
             }
             className="w-full h-14 px-4 rounded-2xl bg-m3-primary-container text-m3-on-primary-container font-medium text-sm inline-flex items-center justify-center gap-2.5 shadow-sm hover:opacity-95 active:scale-[0.99] transition-all whitespace-nowrap"
           >
             <Plus className="w-5 h-5 shrink-0" />
-            <span>{store.cards.length === 0 ? 'Add Credit Card' : 'Add Spending'}</span>
+            <span>
+              {store.cards.length === 0 && store.settings.bankAccounts.length === 0
+                ? 'Add Credit Card'
+                : 'Add Entry'}
+            </span>
           </button>
 
           {/* Navigation Destinations */}
@@ -555,16 +581,22 @@ export default function App() {
               </button>
             )}
 
-            {/* Tablet Quick-Add Spending CTA */}
+            {/* Tablet Quick-Add Entry CTA */}
             <button
               type="button"
               onClick={() =>
-                store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
+                store.cards.length === 0 && store.settings.bankAccounts.length === 0
+                  ? openAddCard()
+                  : openTransactionModal({type: store.cards.length > 0 ? 'spend' : 'bank_spend'})
               }
               className="hidden sm:inline-flex md:hidden h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>{store.cards.length === 0 ? 'Add Card' : 'Add Spend'}</span>
+              <span>
+                {store.cards.length === 0 && store.settings.bankAccounts.length === 0
+                  ? 'Add Card'
+                  : 'Add Entry'}
+              </span>
             </button>
           </div>
         </header>
@@ -615,6 +647,7 @@ export default function App() {
               {activeTab === 'cards' && (
                 <CardsScreen
                   cardSummaries={store.summary.cardSummaries}
+                  bankAccounts={store.settings.bankAccounts}
                   transactions={store.transactions}
                   selectedCardId={selectedCardId}
                   currency={store.settings.currency}
@@ -686,13 +719,23 @@ export default function App() {
         <button
           type="button"
           onClick={() =>
-            store.cards.length === 0 ? openAddCard() : openTransactionModal({type: 'spend'})
+            store.cards.length === 0 && store.settings.bankAccounts.length === 0
+              ? openAddCard()
+              : openTransactionModal({type: store.cards.length > 0 ? 'spend' : 'bank_spend'})
           }
-          aria-label={store.cards.length === 0 ? 'Add credit card' : 'Add spending'}
+          aria-label={
+            store.cards.length === 0 && store.settings.bankAccounts.length === 0
+              ? 'Add credit card'
+              : 'Add entry'
+          }
           className="md:hidden fixed right-4 bottom-[84px] z-30 h-14 px-4 rounded-2xl bg-m3-primary-container text-m3-on-primary-container shadow-lg shadow-black/25 inline-flex items-center gap-2 font-medium text-sm active:scale-95 transition-transform whitespace-nowrap"
         >
           <Plus className="w-5 h-5 shrink-0" />
-          <span>{store.cards.length === 0 ? 'Add card' : 'Add spend'}</span>
+          <span>
+            {store.cards.length === 0 && store.settings.bankAccounts.length === 0
+              ? 'Add card'
+              : 'Add entry'}
+          </span>
         </button>
       )}
 
@@ -805,7 +848,11 @@ export default function App() {
               ? 'Transaction updated.'
               : input.type === 'payment'
                 ? 'Card payment recorded.'
-                : 'Spending added.'
+                : input.type === 'cashback'
+                  ? 'Cashback recorded.'
+                  : input.type === 'bank_spend'
+                    ? 'Bank / UPI spend added.'
+                    : 'Card spending added.'
           );
         }}
       />
@@ -837,27 +884,32 @@ export default function App() {
         onClose={() => setTxToDelete(null)}
         onConfirm={handleConfirmDeleteTx}
         title={
-          txToDelete?.type === 'payment' ? 'Delete Payment Record?' : 'Delete Spending Entry?'
+          txToDelete?.type === 'payment'
+            ? 'Delete Payment Record?'
+            : txToDelete?.type === 'cashback'
+              ? 'Delete Cashback Entry?'
+              : txToDelete?.type === 'bank_spend'
+                ? 'Delete Bank / UPI Spend?'
+                : 'Delete Spending Entry?'
         }
         message={
           txToDelete
             ? `Remove "${txToDelete.description}" (${formatMoney(
                 txToDelete.amount,
                 store.settings.currency
-              )} on ${formatShortDate(txToDelete.date)})? Card balances and statements will recalculate immediately.`
+              )} on ${formatShortDate(txToDelete.date)})? Balances and statements will recalculate immediately.`
             : ''
         }
         confirmLabel="Delete"
         destructive={true}
         checkboxLabel={(() => {
-          if (!txToDelete || txToDelete.type !== 'payment' || !txToDelete.deductFromBank) {
-            return undefined;
+          if (!txToDelete) return undefined;
+          const effect = getTransactionBankEffect(txToDelete, store.settings.bankAccounts);
+          if (!effect) return undefined;
+          if (effect.delta < 0) {
+            return `Refund ${formatMoney(Math.abs(effect.delta), store.settings.currency)} back to ${effect.account.name}`;
           }
-          const refundAccount = txToDelete.bankAccountId
-            ? store.settings.bankAccounts.find((a) => a.id === txToDelete.bankAccountId)
-            : store.settings.bankAccounts[0];
-          if (!refundAccount) return undefined;
-          return `Refund ${formatMoney(txToDelete.amount, store.settings.currency)} back to ${refundAccount.name}`;
+          return `Deduct ${formatMoney(effect.delta, store.settings.currency)} back from ${effect.account.name}`;
         })()}
         checkboxChecked={refundBankOnDelete}
         onCheckboxChange={setRefundBankOnDelete}

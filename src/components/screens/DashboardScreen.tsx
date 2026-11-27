@@ -148,6 +148,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </span>{' '}
               unbilled
             </p>
+            {summary.totalCashback > 0 && (
+              <p className="mt-1 text-xs font-medium text-m3-success inline-flex items-center gap-1">
+                <Sparkles className="w-3 h-3 shrink-0" />
+                <span className="font-mono tabular-nums">
+                  {formatMoney(summary.totalCashback, currency)}
+                </span>{' '}
+                cashback earned
+              </p>
+            )}
           </div>
         </div>
 
@@ -207,49 +216,65 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* First-Time Empty Onboarding */}
       {summary.cardSummaries.length === 0 ? (
-        <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-6 sm:p-8 text-center max-w-2xl mx-auto">
-          <div className="w-11 h-11 rounded-2xl bg-m3-primary-container text-m3-on-primary-container flex items-center justify-center mx-auto">
-            <CreditCardIcon className="w-5 h-5" />
-          </div>
-          <h2 className="mt-3.5 text-lg font-semibold text-m3-on-surface">
-            Track your credit cards and bank balance offline
-          </h2>
-          <p className="mt-1.5 text-[13px] text-m3-on-surface-variant max-w-md mx-auto leading-relaxed">
-            Add your credit cards with their billing and payment due dates, enter your bank
-            balance, and keep all data stored privately on this device.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-            <button
-              type="button"
-              onClick={onAddCard}
-              className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span>Add First Card</span>
-            </button>
-            <button
-              type="button"
-              onClick={onEditBankBalance}
-              className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
-            >
-              <Landmark className="w-4 h-4 shrink-0" />
-              <span>Set Bank Balance</span>
-            </button>
-            <button
-              type="button"
-              onClick={onLoadSampleData}
-              className="h-10 px-4 rounded-full bg-m3-surface-high text-m3-on-surface text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
-            >
-              <Sparkles className="w-4 h-4 text-m3-primary shrink-0" />
-              <span>Load Sample Cards</span>
-            </button>
-          </div>
-        </section>
+        <div className="space-y-6">
+          <section className="rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-6 sm:p-8 text-center max-w-2xl mx-auto">
+            <div className="w-11 h-11 rounded-2xl bg-m3-primary-container text-m3-on-primary-container flex items-center justify-center mx-auto">
+              <CreditCardIcon className="w-5 h-5" />
+            </div>
+            <h2 className="mt-3.5 text-lg font-semibold text-m3-on-surface">
+              Track your credit cards, cashback &amp; bank UPI offline
+            </h2>
+            <p className="mt-1.5 text-[13px] text-m3-on-surface-variant max-w-md mx-auto leading-relaxed">
+              Add your credit cards with their billing and due dates, track cashback and direct
+              bank/UPI spending, and keep all data privately on this device.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={onAddCard}
+                className="h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Add First Card</span>
+              </button>
+              {settings.bankAccounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onOpenTransactionModal({type: 'bank_spend'})}
+                  className="h-10 px-4 rounded-full bg-m3-secondary-container text-m3-on-secondary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+                >
+                  <Landmark className="w-4 h-4 shrink-0" />
+                  <span>Add Bank / UPI Spend</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onLoadSampleData}
+                className="h-10 px-4 rounded-full bg-m3-surface-high text-m3-on-surface text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                <Sparkles className="w-4 h-4 text-m3-primary shrink-0" />
+                <span>Load Sample Data</span>
+              </button>
+            </div>
+          </section>
+
+          {transactions.length > 0 && (
+            <SpendingAnalyticsSection
+              cards={[]}
+              bankAccounts={settings.bankAccounts}
+              transactions={transactions}
+              currency={currency}
+              theme={settings.theme}
+              todayDate={todayDate}
+            />
+          )}
+        </div>
       ) : (
         <div className="space-y-6">
           {/* Interactive Category Charts & Monthly Spend Graphs */}
           <SpendingAnalyticsSection
             cards={summary.cardSummaries.map((cs) => cs.card)}
+            bankAccounts={settings.bankAccounts}
             transactions={transactions}
             currency={currency}
             theme={settings.theme}
@@ -396,7 +421,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                     Recent Transactions
                   </h2>
                   <p className="text-xs text-m3-on-surface-variant">
-                    Latest card spending and bill payments
+                    Latest card, bank UPI, cashback &amp; bill entries
                   </p>
                 </div>
                 <button
@@ -427,7 +452,44 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                 <div className="divide-y divide-m3-outline-variant/50">
                   {recentTransactions.map((tx) => {
                     const card = cardById.get(tx.cardId);
+                    const bankAcc = tx.bankAccountId
+                      ? settings.bankAccounts.find((a) => a.id === tx.bankAccountId)
+                      : settings.bankAccounts[0];
                     const isPayment = tx.type === 'payment';
+                    const isBankSpend = tx.type === 'bank_spend';
+                    const isCashback = tx.type === 'cashback';
+
+                    const iconBgClass =
+                      isPayment || isCashback
+                        ? 'bg-m3-success-container text-m3-on-success-container'
+                        : isBankSpend
+                          ? 'bg-m3-secondary-container text-m3-on-secondary-container'
+                          : 'bg-m3-surface-container text-m3-on-surface-variant';
+
+                    const amountColorClass =
+                      isPayment || isCashback ? 'text-m3-success' : 'text-m3-on-surface';
+
+                    const amountPrefix = isPayment || isBankSpend ? '−' : '+';
+
+                    const subtitle = isBankSpend
+                      ? `${bankAcc?.name ?? 'Bank'} · ${formatShortDate(tx.date)} · ${getCategoryLabel(
+                          resolveTransactionCategory(tx)
+                        )} · UPI/Bank`
+                      : isCashback
+                        ? `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)} · ${
+                            tx.cashbackDestination === 'bank'
+                              ? `Cashback → ${bankAcc?.name ?? 'Bank'}`
+                              : 'Cashback · Card bill'
+                          }`
+                        : isPayment
+                          ? `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)} · ${
+                              tx.deductFromBank && tx.bankAccountId
+                                ? `Paid via ${bankAcc?.name ?? 'Bank'}`
+                                : 'Payment'
+                            }`
+                          : `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)} · ${getCategoryLabel(
+                              resolveTransactionCategory(tx)
+                            )}`;
 
                     return (
                       <div
@@ -436,14 +498,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       >
                         <div className="flex items-center gap-3.5 min-w-0">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                              isPayment
-                                ? 'bg-m3-success-container text-m3-on-success-container'
-                                : 'bg-m3-surface-container text-m3-on-surface-variant'
-                            }`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconBgClass}`}
                           >
                             {isPayment ? (
                               <ArrowDownLeft className="w-4 h-4" />
+                            ) : isCashback ? (
+                              <Sparkles className="w-4 h-4" />
+                            ) : isBankSpend ? (
+                              <Landmark className="w-4 h-4" />
                             ) : (
                               <ArrowUpRight className="w-4 h-4" />
                             )}
@@ -453,26 +515,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                               {tx.description}
                             </p>
                             <p className="text-xs text-m3-on-surface-variant truncate">
-                              {card?.name ?? 'Card'} · {formatShortDate(tx.date)} ·{' '}
-                              {isPayment
-                                ? tx.deductFromBank && tx.bankAccountId
-                                  ? `Paid via ${
-                                      settings.bankAccounts.find((a) => a.id === tx.bankAccountId)
-                                        ?.name ?? 'Bank'
-                                    }`
-                                  : 'Payment'
-                                : getCategoryLabel(resolveTransactionCategory(tx))}
+                              {subtitle}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span
-                            className={`text-sm font-semibold font-mono tabular-nums mr-1 ${
-                              isPayment ? 'text-m3-success' : 'text-m3-on-surface'
-                            }`}
+                            className={`text-sm font-semibold font-mono tabular-nums mr-1 ${amountColorClass}`}
                           >
-                            {isPayment ? '−' : '+'}
+                            {amountPrefix}
                             {formatMoney(tx.amount, currency)}
                           </span>
                           <button

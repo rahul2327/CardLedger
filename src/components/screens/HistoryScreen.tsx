@@ -3,10 +3,12 @@ import {
   ArrowDownLeft,
   ArrowUpDown,
   ArrowUpRight,
+  Landmark,
   Pencil,
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 import type {BankAccount, CreditCard, CurrencyCode, Transaction} from '../../types/finance';
@@ -29,8 +31,16 @@ interface HistoryScreenProps {
   onDeleteTransaction: (tx: Transaction) => void;
 }
 
-type TypeFilter = 'all' | 'spend' | 'payment';
+type TypeFilter = 'all' | 'spend' | 'bank_spend' | 'payment' | 'cashback';
 type SortOrder = 'newest' | 'oldest';
+
+const TYPE_FILTER_OPTIONS: Array<{id: TypeFilter; label: string}> = [
+  {id: 'all', label: 'All'},
+  {id: 'spend', label: 'Card'},
+  {id: 'bank_spend', label: 'Bank / UPI'},
+  {id: 'payment', label: 'Paid'},
+  {id: 'cashback', label: 'Cashback'},
+];
 
 export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   cards,
@@ -43,7 +53,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   onDeleteTransaction,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [cardFilter, setCardFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -54,7 +64,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
-    cardFilter !== 'all' ||
+    sourceFilter !== 'all' ||
     typeFilter !== 'all' ||
     fromDate !== '' ||
     toDate !== '';
@@ -63,7 +73,16 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     const query = searchQuery.trim().toLowerCase();
 
     const matches = transactions.filter((tx) => {
-      if (cardFilter !== 'all' && tx.cardId !== cardFilter) return false;
+      if (sourceFilter !== 'all') {
+        if (sourceFilter === 'all_bank') {
+          if (tx.type !== 'bank_spend') return false;
+        } else if (sourceFilter.startsWith('bank:')) {
+          const targetBankId = sourceFilter.slice(5);
+          if (tx.bankAccountId !== targetBankId) return false;
+        } else {
+          if (tx.cardId !== sourceFilter) return false;
+        }
+      }
       if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
       if (fromDate && tx.date < fromDate) return false;
       if (toDate && tx.date > toDate) return false;
@@ -73,14 +92,25 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           ? bankById.get(tx.bankAccountId)?.name.toLowerCase() ?? ''
           : '';
         const categoryName =
-          tx.type === 'spend'
+          tx.type === 'spend' || tx.type === 'bank_spend'
             ? getCategoryLabel(resolveTransactionCategory(tx)).toLowerCase()
             : '';
+        const typeKeyword =
+          tx.type === 'cashback'
+            ? 'cashback'
+            : tx.type === 'bank_spend'
+              ? 'bank upi'
+              : tx.type === 'payment'
+                ? 'payment bill'
+                : 'card spend';
         const matchesDesc = tx.description.toLowerCase().includes(query);
         const matchesCard = cardName.includes(query);
         const matchesBank = bankName.includes(query);
         const matchesCategory = categoryName.includes(query);
-        if (!matchesDesc && !matchesCard && !matchesBank && !matchesCategory) return false;
+        const matchesType = typeKeyword.includes(query);
+        if (!matchesDesc && !matchesCard && !matchesBank && !matchesCategory && !matchesType) {
+          return false;
+        }
       }
       return true;
     });
@@ -95,28 +125,46 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         ? b.createdAt.localeCompare(a.createdAt)
         : a.createdAt.localeCompare(b.createdAt);
     });
-  }, [transactions, cardFilter, typeFilter, fromDate, toDate, searchQuery, sortOrder, cardById, bankById]);
+  }, [
+    transactions,
+    sourceFilter,
+    typeFilter,
+    fromDate,
+    toDate,
+    searchQuery,
+    sortOrder,
+    cardById,
+    bankById,
+  ]);
 
   const filteredTotals = useMemo(() => {
-    let spend = 0;
+    let cardSpend = 0;
+    let bankSpend = 0;
     let payment = 0;
+    let cashback = 0;
     for (const tx of filteredTransactions) {
-      if (tx.type === 'spend') spend += tx.amount;
+      if (tx.type === 'spend') cardSpend += tx.amount;
+      else if (tx.type === 'bank_spend') bankSpend += tx.amount;
+      else if (tx.type === 'cashback') cashback += tx.amount;
       else payment += tx.amount;
     }
     return {
-      spend: roundMoney(spend),
+      cardSpend: roundMoney(cardSpend),
+      bankSpend: roundMoney(bankSpend),
       payment: roundMoney(payment),
+      cashback: roundMoney(cashback),
     };
   }, [filteredTransactions]);
 
   const clearFilters = () => {
     setSearchQuery('');
-    setCardFilter('all');
+    setSourceFilter('all');
     setTypeFilter('all');
     setFromDate('');
     setToDate('');
   };
+
+  const canAddEntry = cards.length > 0 || bankAccounts.length > 0;
 
   return (
     <div className="space-y-5">
@@ -130,7 +178,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search transactions or cards"
+              placeholder="Search spends, UPI, cashback or cards"
               aria-label="Search transactions"
               className="w-full h-11 pl-11 pr-4 rounded-full bg-m3-surface-high border border-transparent text-[13px] text-m3-on-surface placeholder:text-m3-on-surface-variant/80 focus:border-m3-primary focus:outline-none transition-colors"
             />
@@ -147,45 +195,62 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           </button>
         </div>
 
-        {/* Second Row: Type, Card, Date Range */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-center">
-          {/* Type Filter */}
-          <div
-            className="grid grid-cols-3 p-1 rounded-full bg-m3-surface-low border border-m3-outline-variant/60"
-            role="tablist"
-            aria-label="Filter by transaction type"
-          >
-            {(['all', 'spend', 'payment'] as TypeFilter[]).map((key) => (
+        {/* Type Filter Pills (responsive wrapping, zero clipping on narrow phones) */}
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          role="tablist"
+          aria-label="Filter by transaction type"
+        >
+          {TYPE_FILTER_OPTIONS.map((opt) => {
+            const active = typeFilter === opt.id;
+            return (
               <button
-                key={key}
+                key={opt.id}
                 type="button"
                 role="tab"
-                aria-selected={typeFilter === key}
-                onClick={() => setTypeFilter(key)}
-                className={`h-9 px-2 rounded-full text-[13px] font-medium transition-colors whitespace-nowrap truncate ${
-                  typeFilter === key
-                    ? 'bg-m3-secondary-container text-m3-on-secondary-container'
-                    : 'text-m3-on-surface-variant hover:text-m3-on-surface'
+                aria-selected={active}
+                onClick={() => setTypeFilter(opt.id)}
+                className={`h-9 px-3.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border ${
+                  active
+                    ? 'bg-m3-secondary-container text-m3-on-secondary-container border-m3-primary/35'
+                    : 'bg-m3-surface-low text-m3-on-surface-variant border-m3-outline-variant/60 hover:text-m3-on-surface'
                 }`}
               >
-                {key === 'all' ? 'All' : key === 'spend' ? 'Spend' : 'Paid'}
+                {opt.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
 
-          {/* Card Dropdown */}
+        {/* Source & Date Range Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+          {/* Source Dropdown (Cards + Bank Accounts) */}
           <select
-            aria-label="Filter by credit card"
-            value={cardFilter}
-            onChange={(e) => setCardFilter(e.target.value)}
+            aria-label="Filter by card or bank account"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
             className="h-10 px-4 rounded-full bg-m3-surface-low border border-m3-outline-variant text-[13px] text-m3-on-surface focus:border-m3-primary focus:outline-none"
           >
-            <option value="all">All Cards</option>
-            {cards.map((card) => (
-              <option key={card.id} value={card.id}>
-                {card.name}
-              </option>
-            ))}
+            <option value="all">All Cards &amp; Banks</option>
+            {cards.length > 0 && (
+              <optgroup label="Credit Cards">
+                {cards.map((card) => (
+                  <option key={card.id} value={card.id}>
+                    {card.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {bankAccounts.length > 0 && (
+              <optgroup label="Bank / UPI Accounts">
+                <option value="all_bank">All Bank / UPI Spends</option>
+                {bankAccounts.map((acc) => (
+                  <option key={acc.id} value={`bank:${acc.id}`}>
+                    {acc.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
 
           {/* From Date */}
@@ -198,7 +263,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="w-full min-h-[44px] px-3 rounded-full bg-m3-surface-low border border-m3-outline-variant font-mono tabular-nums text-xs text-m3-on-surface focus:border-m3-primary focus:outline-none"
+              className="w-full min-h-[42px] px-3 rounded-full bg-m3-surface-low border border-m3-outline-variant font-mono tabular-nums text-xs text-m3-on-surface focus:border-m3-primary focus:outline-none"
             />
           </div>
 
@@ -212,7 +277,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="w-full min-h-[44px] px-3 rounded-full bg-m3-surface-low border border-m3-outline-variant font-mono tabular-nums text-xs text-m3-on-surface focus:border-m3-primary focus:outline-none"
+              className="w-full min-h-[42px] px-3 rounded-full bg-m3-surface-low border border-m3-outline-variant font-mono tabular-nums text-xs text-m3-on-surface focus:border-m3-primary focus:outline-none"
             />
           </div>
         </div>
@@ -236,17 +301,33 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
               of {transactions.length}
             </span>
             <span>
-              Spent:{' '}
+              Card:{' '}
               <strong className="font-mono tabular-nums text-m3-on-surface">
-                {formatMoney(filteredTotals.spend, currency)}
+                {formatMoney(filteredTotals.cardSpend, currency)}
               </strong>
             </span>
+            {filteredTotals.bankSpend > 0 && (
+              <span>
+                Bank/UPI:{' '}
+                <strong className="font-mono tabular-nums text-m3-on-surface">
+                  {formatMoney(filteredTotals.bankSpend, currency)}
+                </strong>
+              </span>
+            )}
             <span>
               Paid:{' '}
               <strong className="font-mono tabular-nums text-m3-success">
                 {formatMoney(filteredTotals.payment, currency)}
               </strong>
             </span>
+            {filteredTotals.cashback > 0 && (
+              <span>
+                Cashback:{' '}
+                <strong className="font-mono tabular-nums text-m3-success">
+                  +{formatMoney(filteredTotals.cashback, currency)}
+                </strong>
+              </span>
+            )}
           </div>
 
           {hasActiveFilters && (
@@ -273,17 +354,19 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
             </p>
             <p className="mt-1 text-xs text-m3-on-surface-variant">
               {transactions.length === 0
-                ? 'Add a spending entry or card payment to build your local ledger.'
-                : 'Try adjusting your search query, card filter, or date range.'}
+                ? 'Add card spending, direct bank/UPI spending, cashback, or bill payments to build your ledger.'
+                : 'Try adjusting your search query, filter, or date range.'}
             </p>
-            {transactions.length === 0 && cards.length > 0 && (
+            {transactions.length === 0 && canAddEntry && (
               <button
                 type="button"
-                onClick={() => onOpenTransactionModal({type: 'spend'})}
+                onClick={() =>
+                  onOpenTransactionModal({type: cards.length > 0 ? 'spend' : 'bank_spend'})
+                }
                 className="mt-5 h-10 px-4 rounded-full bg-m3-primary-container text-m3-on-primary-container text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Spending</span>
+                <span>Add Entry</span>
               </button>
             )}
           </div>
@@ -291,9 +374,15 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           <div className="divide-y divide-m3-outline-variant/50">
             {filteredTransactions.map((tx) => {
               const card = cardById.get(tx.cardId);
+              const bankAcc = tx.bankAccountId
+                ? bankById.get(tx.bankAccountId)
+                : bankAccounts[0];
               const isPayment = tx.type === 'payment';
+              const isBankSpend = tx.type === 'bank_spend';
+              const isCashback = tx.type === 'cashback';
+
               let cycleLabel = '';
-              if (!isPayment && card) {
+              if (tx.type === 'spend' && card) {
                 const win = getCycleWindowForTransactionDate(
                   tx.date,
                   card.billingDay,
@@ -302,6 +391,40 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                 cycleLabel = win.statementDate <= todayDate ? 'Billed' : 'Current Cycle';
               }
 
+              const iconBgClass =
+                isPayment || isCashback
+                  ? 'bg-m3-success-container text-m3-on-success-container'
+                  : isBankSpend
+                    ? 'bg-m3-secondary-container text-m3-on-secondary-container'
+                    : 'bg-m3-surface-container text-m3-on-surface-variant';
+
+              const amountColorClass =
+                isPayment || isCashback ? 'text-m3-success' : 'text-m3-on-surface';
+
+              const amountPrefix = isPayment || isBankSpend ? '−' : '+';
+
+              const subtitle = isBankSpend
+                ? `${bankAcc?.name ?? 'Bank'} · ${formatShortDate(tx.date)} · ${getCategoryLabel(
+                    resolveTransactionCategory(tx)
+                  )}${tx.deductFromBank === false ? ' · Not deducted' : ' · Bank / UPI'}`
+                : isCashback
+                  ? `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)} · ${
+                      tx.cashbackDestination === 'bank'
+                        ? `Cashback → ${bankAcc?.name ?? 'Bank'}`
+                        : 'Cashback · Card bill'
+                    }`
+                  : isPayment
+                    ? `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)}${
+                        tx.deductFromBank
+                          ? bankAcc
+                            ? ` · Paid via ${bankAcc.name}`
+                            : ' · Payment (Bank deducted)'
+                          : ' · Payment'
+                      }`
+                    : `${card?.name ?? 'Card'} · ${formatShortDate(tx.date)} · ${getCategoryLabel(
+                        resolveTransactionCategory(tx)
+                      )}${cycleLabel ? ` · ${cycleLabel}` : ''}`;
+
               return (
                 <div
                   key={tx.id}
@@ -309,14 +432,14 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        isPayment
-                          ? 'bg-m3-success-container text-m3-on-success-container'
-                          : 'bg-m3-surface-container text-m3-on-surface-variant'
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconBgClass}`}
                     >
                       {isPayment ? (
                         <ArrowDownLeft className="w-4 h-4" />
+                      ) : isCashback ? (
+                        <Sparkles className="w-4 h-4" />
+                      ) : isBankSpend ? (
+                        <Landmark className="w-4 h-4" />
                       ) : (
                         <ArrowUpRight className="w-4 h-4" />
                       )}
@@ -326,27 +449,16 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
                         {tx.description}
                       </p>
                       <p className="mt-0.5 text-xs text-m3-on-surface-variant truncate">
-                        {card?.name ?? 'Card'} · {formatShortDate(tx.date)}
-                        {isPayment
-                          ? tx.deductFromBank
-                            ? tx.bankAccountId && bankById.get(tx.bankAccountId)
-                              ? ` · Paid via ${bankById.get(tx.bankAccountId)!.name}`
-                              : ' · Payment (Bank deducted)'
-                            : ' · Payment'
-                          : ` · ${getCategoryLabel(resolveTransactionCategory(tx))}${
-                              cycleLabel ? ` · ${cycleLabel}` : ''
-                            }`}
+                        {subtitle}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span
-                      className={`text-sm sm:text-base font-semibold font-mono tabular-nums mr-1 ${
-                        isPayment ? 'text-m3-success' : 'text-m3-on-surface'
-                      }`}
+                      className={`text-sm sm:text-base font-semibold font-mono tabular-nums mr-1 ${amountColorClass}`}
                     >
-                      {isPayment ? '−' : '+'}
+                      {amountPrefix}
                       {formatMoney(tx.amount, currency)}
                     </span>
                     <button

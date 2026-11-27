@@ -513,22 +513,31 @@ export function validateBackupPayload(
     }
     const id = typeof t.id === 'string' && t.id.trim() ? t.id.trim() : '';
     const cardId = typeof t.cardId === 'string' ? t.cardId.trim() : '';
-    const type = t.type === 'spend' || t.type === 'payment' ? t.type : null;
+    const type =
+      t.type === 'spend' ||
+      t.type === 'payment' ||
+      t.type === 'bank_spend' ||
+      t.type === 'cashback'
+        ? t.type
+        : null;
     const amount = Number(t.amount);
     const description = typeof t.description === 'string' ? t.description.trim() : '';
     const date = typeof t.date === 'string' ? t.date.trim() : '';
 
-    if (!id || !cardId || !cardIds.has(cardId)) {
-      return {
-        valid: false,
-        error: `Transaction #${i + 1} references a credit card that is not in the backup.`,
-      };
+    if (!id) {
+      return {valid: false, error: `Transaction #${i + 1} is missing an ID.`};
     }
     if (txIds.has(id)) {
       return {valid: false, error: `Duplicate transaction ID "${id}" found in backup.`};
     }
     if (!type) {
       return {valid: false, error: `Transaction #${i + 1} has an invalid type.`};
+    }
+    if (type !== 'bank_spend' && (!cardId || !cardIds.has(cardId))) {
+      return {
+        valid: false,
+        error: `Transaction #${i + 1} references a credit card that is not in the backup.`,
+      };
     }
     if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) {
       return {valid: false, error: `Transaction #${i + 1} has an invalid amount.`};
@@ -537,29 +546,53 @@ export function validateBackupPayload(
       return {valid: false, error: `Transaction #${i + 1} has an invalid calendar date.`};
     }
 
+    const defaultDesc =
+      type === 'payment'
+        ? 'Card Payment'
+        : type === 'bank_spend'
+          ? 'Bank / UPI Spend'
+          : type === 'cashback'
+            ? 'Card Cashback'
+            : 'Card Spend';
+
+    const cashbackDestination =
+      type === 'cashback'
+        ? t.cashbackDestination === 'bank'
+          ? 'bank'
+          : 'statement'
+        : undefined;
+
     txIds.add(id);
     sanitizedTransactions.push({
       id,
-      cardId,
+      cardId: type === 'bank_spend' ? '' : cardId,
       type,
       amount: roundMoney(amount),
-      description: description ? description.slice(0, 120) : type === 'payment' ? 'Card Payment' : 'Card Spend',
+      description: description ? description.slice(0, 120) : defaultDesc,
       category:
-        type === 'spend' &&
+        (type === 'spend' || type === 'bank_spend') &&
         typeof t.category === 'string' &&
         VALID_SPENDING_CATEGORIES.includes(t.category as SpendingCategory)
           ? (t.category as SpendingCategory)
           : undefined,
       date,
       statementCycleKey:
-        typeof t.statementCycleKey === 'string' && isValidCalendarDate(t.statementCycleKey)
+        (type === 'payment' || (type === 'cashback' && cashbackDestination === 'statement')) &&
+        typeof t.statementCycleKey === 'string' &&
+        isValidCalendarDate(t.statementCycleKey)
           ? t.statementCycleKey
           : undefined,
-      deductFromBank: typeof t.deductFromBank === 'boolean' ? t.deductFromBank : undefined,
+      deductFromBank:
+        type === 'payment' || type === 'bank_spend'
+          ? typeof t.deductFromBank === 'boolean'
+            ? t.deductFromBank
+            : type === 'bank_spend'
+          : undefined,
       bankAccountId:
         typeof t.bankAccountId === 'string' && t.bankAccountId.trim()
           ? t.bankAccountId.trim()
           : undefined,
+      cashbackDestination,
       createdAt: typeof t.createdAt === 'string' ? t.createdAt : nowIso,
       updatedAt: typeof t.updatedAt === 'string' ? t.updatedAt : nowIso,
     });

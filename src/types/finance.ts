@@ -4,7 +4,9 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type CardColorToken = 'teal' | 'indigo' | 'emerald' | 'amber' | 'rose' | 'slate';
 
-export type TransactionType = 'spend' | 'payment';
+export type TransactionType = 'spend' | 'payment' | 'bank_spend' | 'cashback';
+
+export type CashbackDestination = 'statement' | 'bank';
 
 export type SpendingCategory =
   | 'food'
@@ -60,6 +62,7 @@ export interface Transaction {
   statementCycleKey?: string;
   deductFromBank?: boolean;
   bankAccountId?: string;
+  cashbackDestination?: CashbackDestination;
   createdAt: string;
   updatedAt: string;
 }
@@ -82,6 +85,7 @@ export interface CardSummary {
   card: CreditCard;
   totalSpend: number;
   totalPayments: number;
+  totalCashback: number;
   currentOutstanding: number;
   creditSurplus: number;
   remainingLimit: number | null;
@@ -109,6 +113,8 @@ export interface DashboardSummary {
   upcomingCCBills: number;
   currentUnbilledTotal: number;
   balanceAfterCCPayments: number;
+  totalCashback: number;
+  totalBankSpend: number;
   cardSummaries: CardSummary[];
   upcomingDueBills: UpcomingBillItem[];
 }

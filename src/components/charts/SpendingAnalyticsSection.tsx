@@ -1,6 +1,7 @@
 import React, {useMemo, useState} from 'react';
 import {BarChart3, PieChart} from 'lucide-react';
 import type {
+  BankAccount,
   CreditCard,
   CurrencyCode,
   SpendingCategory,
@@ -16,6 +17,7 @@ import {CARD_COLOR_TOKENS, formatMoney} from '../../utils/formatters';
 
 interface SpendingAnalyticsSectionProps {
   cards: CreditCard[];
+  bankAccounts: BankAccount[];
   transactions: Transaction[];
   currency: CurrencyCode;
   theme: ThemeMode;
@@ -49,6 +51,7 @@ function getMonthFullLabel(monthKey: string): string {
 
 export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> = ({
   cards,
+  bankAccounts,
   transactions,
   currency,
   theme,
@@ -66,7 +69,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
 
   const todayParts = useMemo(() => parseDateParts(todayDate), [todayDate]);
 
-  // Filter transactions by chosen timeframe for Category & Card breakdowns
+  // Filter transactions by chosen timeframe for Category & Source breakdowns
   const rangeStartMonthKey = useMemo(() => {
     if (timeRange === 'all') return null;
     const offset = timeRange === 'this_month' ? 0 : timeRange === '3m' ? -2 : -5;
@@ -76,11 +79,24 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
 
   const filteredSpends = useMemo(() => {
     return transactions.filter((tx) => {
-      if (tx.type !== 'spend') return false;
+      if (tx.type !== 'spend' && tx.type !== 'bank_spend') return false;
       if (rangeStartMonthKey && tx.date.slice(0, 7) < rangeStartMonthKey) return false;
       return true;
     });
   }, [transactions, rangeStartMonthKey]);
+
+  const spendSplit = useMemo(() => {
+    let cardTotal = 0;
+    let bankTotal = 0;
+    for (const tx of filteredSpends) {
+      if (tx.type === 'bank_spend') bankTotal += tx.amount;
+      else cardTotal += tx.amount;
+    }
+    return {
+      cardTotal: roundMoney(cardTotal),
+      bankTotal: roundMoney(bankTotal),
+    };
+  }, [filteredSpends]);
 
   const categoryBreakdown = useMemo(() => {
     const map = new Map<SpendingCategory, {amount: number; count: number}>();
@@ -108,7 +124,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
     return {total, items};
   }, [filteredSpends]);
 
-  // Build 6-month Spend vs Payment trend bars
+  // Build 3- or 6-month Total Spend vs CC Paid trend bars (+ monthly cashback readout)
   const monthlySeries = useMemo(() => {
     const monthCount = timeRange === '3m' ? 3 : 6;
     const buckets: Array<{
@@ -116,6 +132,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
       label: string;
       spend: number;
       payment: number;
+      cashback: number;
     }> = [];
 
     for (let i = monthCount - 1; i >= 0; i--) {
@@ -126,6 +143,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
         label: getMonthShortLabel(key),
         spend: 0,
         payment: 0,
+        cashback: 0,
       });
     }
 
@@ -134,10 +152,12 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
       const key = tx.date.slice(0, 7);
       const bucket = bucketMap.get(key);
       if (!bucket) continue;
-      if (tx.type === 'spend') {
+      if (tx.type === 'spend' || tx.type === 'bank_spend') {
         bucket.spend = roundMoney(bucket.spend + tx.amount);
-      } else {
+      } else if (tx.type === 'payment') {
         bucket.payment = roundMoney(bucket.payment + tx.amount);
+      } else if (tx.type === 'cashback') {
+        bucket.cashback = roundMoney(bucket.cashback + tx.amount);
       }
     }
 
@@ -149,30 +169,59 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
     return {buckets, maxValue};
   }, [transactions, timeRange, todayParts.year, todayParts.month]);
 
-  // Card spending distribution (when 2+ cards)
-  const cardBreakdown = useMemo(() => {
-    if (cards.length < 2) return [];
-    const totals = new Map<string, number>();
+  // Spending by source (Credit Cards + Bank/UPI Accounts)
+  const sourceBreakdown = useMemo(() => {
+    const totals = new Map<
+      string,
+      {id: string; name: string; kind: 'card' | 'bank'; swatchClass: string; amount: number}
+    >();
     let grandTotal = 0;
 
-    for (const tx of filteredSpends) {
-      totals.set(tx.cardId, roundMoney((totals.get(tx.cardId) ?? 0) + tx.amount));
-      grandTotal = roundMoney(grandTotal + tx.amount);
-    }
-    if (grandTotal <= 0) return [];
+    const cardMap = new Map(cards.map((c) => [c.id, c]));
+    const bankMap = new Map(bankAccounts.map((b) => [b.id, b]));
 
-    return cards
-      .map((card) => {
-        const amount = totals.get(card.id) ?? 0;
-        return {
-          card,
-          amount,
-          percent: Math.round((amount / grandTotal) * 1000) / 10,
+    for (const tx of filteredSpends) {
+      grandTotal = roundMoney(grandTotal + tx.amount);
+
+      if (tx.type === 'bank_spend') {
+        const bank = tx.bankAccountId ? bankMap.get(tx.bankAccountId) : bankAccounts[0];
+        const key = bank ? `bank:${bank.id}` : 'bank:other';
+        const existing = totals.get(key) ?? {
+          id: key,
+          name: bank ? `${bank.name} (UPI/Bank)` : 'Bank / UPI',
+          kind: 'bank' as const,
+          swatchClass: 'bg-sky-500',
+          amount: 0,
         };
-      })
+        existing.amount = roundMoney(existing.amount + tx.amount);
+        totals.set(key, existing);
+      } else {
+        const card = cardMap.get(tx.cardId);
+        const key = `card:${tx.cardId}`;
+        const tone = card ? CARD_COLOR_TOKENS[card.colorToken] : CARD_COLOR_TOKENS.teal;
+        const existing = totals.get(key) ?? {
+          id: key,
+          name: card?.name ?? 'Credit Card',
+          kind: 'card' as const,
+          swatchClass: tone.swatch,
+          amount: 0,
+        };
+        existing.amount = roundMoney(existing.amount + tx.amount);
+        totals.set(key, existing);
+      }
+    }
+
+    if (grandTotal <= 0) return [];
+    const list = Array.from(totals.values())
       .filter((item) => item.amount > 0)
+      .map((item) => ({
+        ...item,
+        percent: Math.round((item.amount / grandTotal) * 1000) / 10,
+      }))
       .sort((a, b) => b.amount - a.amount);
-  }, [cards, filteredSpends]);
+
+    return list.length >= 2 ? list : [];
+  }, [cards, bankAccounts, filteredSpends]);
 
   // Active donut focus
   const activeCategoryItem = useMemo(() => {
@@ -188,7 +237,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
     }
     const latestWithData = [...monthlySeries.buckets]
       .reverse()
-      .find((b) => b.spend > 0 || b.payment > 0);
+      .find((b) => b.spend > 0 || b.payment > 0 || b.cashback > 0);
     return latestWithData ?? monthlySeries.buckets[monthlySeries.buckets.length - 1];
   }, [selectedMonthKey, monthlySeries.buckets]);
 
@@ -226,7 +275,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
         <div>
           <h2 className="text-base font-semibold text-m3-on-surface">Spending Insights</h2>
           <p className="text-xs text-m3-on-surface-variant">
-            Category breakdown and monthly spending trends
+            Category breakdown across cards &amp; bank UPI
           </p>
         </div>
 
@@ -263,20 +312,35 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Chart 1: Spending by Category Donut + Bars */}
         <div className="lg:col-span-7 rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-m3-on-surface">Spending by Category</h3>
               <p className="text-xs text-m3-on-surface-variant">
                 {filteredSpends.length}{' '}
-                {filteredSpends.length === 1 ? 'expense' : 'expenses'} · Tap a category to focus
+                {filteredSpends.length === 1 ? 'expense' : 'expenses'}
+                {spendSplit.bankTotal > 0 && spendSplit.cardTotal > 0 ? (
+                  <>
+                    {' '}
+                    · Cards{' '}
+                    <span className="font-mono tabular-nums">
+                      {formatMoney(spendSplit.cardTotal, currency)}
+                    </span>{' '}
+                    · Bank/UPI{' '}
+                    <span className="font-mono tabular-nums">
+                      {formatMoney(spendSplit.bankTotal, currency)}
+                    </span>
+                  </>
+                ) : (
+                  ' · Tap a category to focus'
+                )}
               </p>
             </div>
-            <PieChart className="w-4 h-4 text-m3-primary shrink-0" />
+            <PieChart className="w-4 h-4 text-m3-primary shrink-0 mt-0.5" />
           </div>
 
           {categoryBreakdown.items.length === 0 ? (
             <div className="py-8 text-center text-xs text-m3-on-surface-variant">
-              No card spending recorded in this period.
+              No spending recorded in this period.
             </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
@@ -407,7 +471,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
           )}
         </div>
 
-        {/* Chart 2: Monthly Spending vs. Payments Graph (+ Card Share) */}
+        {/* Chart 2: Monthly Spending vs. Payments Graph (+ Spending by Source) */}
         <div className="lg:col-span-5 rounded-[24px] bg-m3-surface-lowest dark:bg-m3-surface-container border border-m3-outline-variant/50 p-5 flex flex-col justify-between gap-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -428,7 +492,7 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
                 <span className="font-semibold text-m3-on-surface">
                   {getMonthFullLabel(activeMonthBucket.monthKey)}
                 </span>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="inline-flex items-center gap-1.5 text-m3-on-surface-variant">
                     <span className="w-2 h-2 rounded-full bg-m3-primary" />
                     <span className="font-mono tabular-nums font-medium text-m3-on-surface">
@@ -441,6 +505,11 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
                       {formatMoney(activeMonthBucket.payment, currency)}
                     </span>
                   </span>
+                  {activeMonthBucket.cashback > 0 && (
+                    <span className="font-mono tabular-nums font-medium text-m3-success">
+                      +{formatMoney(activeMonthBucket.cashback, currency)} CB
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -513,42 +582,39 @@ export const SpendingAnalyticsSection: React.FC<SpendingAnalyticsSectionProps> =
               <div className="mt-2.5 flex items-center justify-center gap-5 text-[11px] text-m3-on-surface-variant">
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-m3-primary" />
-                  <span>Card Spend</span>
+                  <span>Total Spend</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-m3-success" />
-                  <span>Bill Paid</span>
+                  <span>CC Paid</span>
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Per-Card Spending Breakdown (shown when 2+ cards have spending) */}
-          {cardBreakdown.length > 0 && (
+          {/* Per-Source Spending Breakdown (Credit Cards + Bank/UPI Accounts) */}
+          {sourceBreakdown.length > 0 && (
             <div className="pt-3.5 border-t border-m3-outline-variant/50 space-y-2">
-              <p className="text-xs font-medium text-m3-on-surface-variant">Spending by Card</p>
+              <p className="text-xs font-medium text-m3-on-surface-variant">Spending by Source</p>
               <div className="space-y-2">
-                {cardBreakdown.map(({card, amount, percent}) => {
-                  const tone = CARD_COLOR_TOKENS[card.colorToken];
-                  return (
-                    <div key={card.id} className="space-y-1">
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-medium text-m3-on-surface truncate">
-                          {card.name}
-                        </span>
-                        <span className="font-mono tabular-nums text-m3-on-surface-variant shrink-0">
-                          {formatMoney(amount, currency)} ({percent}%)
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full rounded-full bg-m3-surface-high overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${tone.swatch} transition-all duration-300`}
-                          style={{width: `${Math.max(4, percent)}%`}}
-                        />
-                      </div>
+                {sourceBreakdown.map((item) => (
+                  <div key={item.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium text-m3-on-surface truncate">
+                        {item.name}
+                      </span>
+                      <span className="font-mono tabular-nums text-m3-on-surface-variant shrink-0">
+                        {formatMoney(item.amount, currency)} ({item.percent}%)
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="h-1.5 w-full rounded-full bg-m3-surface-high overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${item.swatchClass} transition-all duration-300`}
+                        style={{width: `${Math.max(4, item.percent)}%`}}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

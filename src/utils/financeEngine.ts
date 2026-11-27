@@ -224,11 +224,20 @@ export function computeCardSummary(
   const cardTxs = allTransactions.filter((t) => t.cardId === card.id);
   const spendTxs = cardTxs.filter((t) => t.type === 'spend');
   const paymentTxs = cardTxs.filter((t) => t.type === 'payment');
+  const cashbackTxs = cardTxs.filter((t) => t.type === 'cashback');
+  const statementCashbackTxs = cashbackTxs.filter(
+    (t) => (t.cashbackDestination ?? 'statement') === 'statement'
+  );
 
   const totalSpend = roundMoney(spendTxs.reduce((acc, tx) => acc + tx.amount, 0));
   const totalPayments = roundMoney(paymentTxs.reduce((acc, tx) => acc + tx.amount, 0));
-  const currentOutstanding = Math.max(0, roundMoney(totalSpend - totalPayments));
-  const creditSurplus = Math.max(0, roundMoney(totalPayments - totalSpend));
+  const totalCashback = roundMoney(cashbackTxs.reduce((acc, tx) => acc + tx.amount, 0));
+  const statementCashbackTotal = roundMoney(
+    statementCashbackTxs.reduce((acc, tx) => acc + tx.amount, 0)
+  );
+  const totalCardCredits = roundMoney(totalPayments + statementCashbackTotal);
+  const currentOutstanding = Math.max(0, roundMoney(totalSpend - totalCardCredits));
+  const creditSurplus = Math.max(0, roundMoney(totalCardCredits - totalSpend));
 
   const openCycleWin = getCurrentOpenCycleWindow(today, card.billingDay, card.dueDay);
   const openParts = parseDateParts(openCycleWin.statementDate);
@@ -278,20 +287,21 @@ export function computeCardSummary(
     a.window.statementDate.localeCompare(b.window.statementDate)
   );
 
-  // Step 1: Apply payments explicitly targeting a specific statementCycleKey
+  // Step 1: Apply payments and statement-credit cashback explicitly targeting a statementCycleKey
+  const cardCreditTxs = [...paymentTxs, ...statementCashbackTxs];
   let unallocatedPaymentPool = 0;
-  for (const payment of paymentTxs) {
-    if (payment.statementCycleKey && cycleMap.has(payment.statementCycleKey)) {
-      const target = cycleMap.get(payment.statementCycleKey)!;
+  for (const creditTx of cardCreditTxs) {
+    if (creditTx.statementCycleKey && cycleMap.has(creditTx.statementCycleKey)) {
+      const target = cycleMap.get(creditTx.statementCycleKey)!;
       const room = Math.max(0, roundMoney(target.billedAmount - target.paidAmount));
-      const applied = Math.min(payment.amount, room);
+      const applied = Math.min(creditTx.amount, room);
       target.paidAmount = roundMoney(target.paidAmount + applied);
-      const overflow = roundMoney(payment.amount - applied);
+      const overflow = roundMoney(creditTx.amount - applied);
       if (overflow > 0) {
         unallocatedPaymentPool = roundMoney(unallocatedPaymentPool + overflow);
       }
     } else {
-      unallocatedPaymentPool = roundMoney(unallocatedPaymentPool + payment.amount);
+      unallocatedPaymentPool = roundMoney(unallocatedPaymentPool + creditTx.amount);
     }
   }
 
@@ -407,6 +417,7 @@ export function computeCardSummary(
     card,
     totalSpend,
     totalPayments,
+    totalCashback,
     currentOutstanding,
     creditSurplus,
     remainingLimit,
@@ -455,6 +466,16 @@ export function computeDashboardSummary(
     cardSummaries.reduce((acc, cs) => acc + cs.currentUnbilledAmount, 0)
   );
 
+  const totalCashback = roundMoney(
+    cardSummaries.reduce((acc, cs) => acc + cs.totalCashback, 0)
+  );
+
+  const totalBankSpend = roundMoney(
+    transactions
+      .filter((tx) => tx.type === 'bank_spend')
+      .reduce((acc, tx) => acc + tx.amount, 0)
+  );
+
   const totalBankBalance = getTotalBankBalance(settings);
   const balanceAfterCCPayments = roundMoney(totalBankBalance - totalCCOutstanding);
 
@@ -479,6 +500,8 @@ export function computeDashboardSummary(
     upcomingCCBills,
     currentUnbilledTotal,
     balanceAfterCCPayments,
+    totalCashback,
+    totalBankSpend,
     cardSummaries,
     upcomingDueBills,
   };

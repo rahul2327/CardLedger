@@ -234,6 +234,48 @@ export function createSampleDataset(currentTheme: AppSettings['theme']): {
       createdAt: nowIso,
       updatedAt: nowIso,
     },
+
+    // Card Cashback earned as statement credit
+    {
+      id: 'tx-sample-14',
+      cardId: 'card-axis-ace',
+      type: 'cashback',
+      amount: 380,
+      description: 'Axis Ace Utility & Dining Cashback',
+      date: clampToToday(addDaysToDateString(axisC.latest.statementDate, 1)),
+      statementCycleKey: axisC.latest.cycleKey,
+      cashbackDestination: 'statement',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+
+    // Direct Bank / UPI Spends (where RuPay CC UPI is not accepted)
+    {
+      id: 'tx-sample-15',
+      cardId: '',
+      type: 'bank_spend',
+      amount: 640,
+      description: 'Local Vegetable Market & Kirana UPI',
+      category: 'food',
+      date: today,
+      bankAccountId: 'bank-hdfc-savings',
+      deductFromBank: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    {
+      id: 'tx-sample-16',
+      cardId: '',
+      type: 'bank_spend',
+      amount: 220,
+      description: 'Auto Rickshaw & Local Commute UPI',
+      category: 'travel',
+      date: addDaysToDateString(today, -1),
+      bankAccountId: 'bank-sbi-salary',
+      deductFromBank: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
   ];
 
   const settings: AppSettings = {

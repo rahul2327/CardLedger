@@ -8,9 +8,11 @@ import {
   CreditCard as CreditCardIcon,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 import type {
+  BankAccount,
   CardSummary,
   CreditCard,
   CurrencyCode,
@@ -28,6 +30,7 @@ import type {TransactionModalPreset} from '../modals/TransactionFormModal';
 
 interface CardsScreenProps {
   cardSummaries: CardSummary[];
+  bankAccounts: BankAccount[];
   transactions: Transaction[];
   selectedCardId: string | null;
   currency: CurrencyCode;
@@ -42,6 +45,7 @@ interface CardsScreenProps {
 
 export const CardsScreen: React.FC<CardsScreenProps> = ({
   cardSummaries,
+  bankAccounts,
   transactions,
   selectedCardId,
   currency,
@@ -53,6 +57,7 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
   onEditTransaction,
   onDeleteTransaction,
 }) => {
+  const bankById = useMemo(() => new Map(bankAccounts.map((b) => [b.id, b])), [bankAccounts]);
   const activeSummary = useMemo(() => {
     if (cardSummaries.length === 0) return null;
     return cardSummaries.find((cs) => cs.card.id === selectedCardId) ?? cardSummaries[0];
@@ -245,6 +250,20 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() =>
+                  onOpenTransactionModal({
+                    type: 'cashback',
+                    cardId: activeSummary.card.id,
+                    description: `${activeSummary.card.name} Cashback`,
+                  })
+                }
+                className="h-10 px-3.5 rounded-full bg-m3-surface-high text-m3-on-surface text-[13px] font-medium inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-m3-success" />
+                <span>Cashback</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => onEditCard(activeSummary.card)}
                 aria-label={`Edit ${activeSummary.card.name}`}
                 className="h-10 w-10 rounded-full bg-m3-surface-high text-m3-on-surface-variant hover:text-m3-on-surface flex items-center justify-center transition-colors shrink-0"
@@ -373,25 +392,42 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
 
             {/* Card Transactions List */}
             <div className="lg:col-span-7 p-6 space-y-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-semibold text-m3-on-surface">
                   Card Activity ({activeCardTransactions.length})
                 </h4>
-                {activeSummary.creditSurplus > 0 && (
-                  <span className="text-xs font-medium text-m3-success font-mono tabular-nums">
-                    Credit surplus: {formatMoney(activeSummary.creditSurplus, currency)}
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {activeSummary.totalCashback > 0 && (
+                    <span className="text-xs font-medium text-m3-success font-mono tabular-nums">
+                      Cashback: {formatMoney(activeSummary.totalCashback, currency)}
+                    </span>
+                  )}
+                  {activeSummary.creditSurplus > 0 && (
+                    <span className="text-xs font-medium text-m3-success font-mono tabular-nums">
+                      Credit surplus: {formatMoney(activeSummary.creditSurplus, currency)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {activeCardTransactions.length === 0 ? (
                 <p className="text-sm text-m3-on-surface-variant py-6">
-                  No spending or payments logged on {activeSummary.card.name} yet.
+                  No spending, cashback, or payments logged on {activeSummary.card.name} yet.
                 </p>
               ) : (
                 <div className="divide-y divide-m3-outline-variant/50">
                   {activeCardTransactions.map((tx) => {
                     const isPayment = tx.type === 'payment';
+                    const isCashback = tx.type === 'cashback';
+                    const bankAcc = tx.bankAccountId ? bankById.get(tx.bankAccountId) : undefined;
+                    const typeCaption = isPayment
+                      ? 'Payment'
+                      : isCashback
+                        ? tx.cashbackDestination === 'bank'
+                          ? `Cashback → ${bankAcc?.name ?? 'Bank'}`
+                          : 'Cashback · Card bill'
+                        : 'Spend';
+
                     return (
                       <div
                         key={tx.id}
@@ -400,13 +436,15 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
                         <div className="flex items-center gap-3 min-w-0">
                           <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                              isPayment
+                              isPayment || isCashback
                                 ? 'bg-m3-success-container text-m3-on-success-container'
                                 : 'bg-m3-surface-high text-m3-on-surface-variant'
                             }`}
                           >
                             {isPayment ? (
                               <ArrowDownLeft className="w-4 h-4" />
+                            ) : isCashback ? (
+                              <Sparkles className="w-4 h-4" />
                             ) : (
                               <ArrowUpRight className="w-4 h-4" />
                             )}
@@ -415,8 +453,8 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
                             <p className="text-sm font-medium text-m3-on-surface truncate">
                               {tx.description}
                             </p>
-                            <p className="text-xs text-m3-on-surface-variant">
-                              {formatShortDate(tx.date)} · {isPayment ? 'Payment' : 'Spend'}
+                            <p className="text-xs text-m3-on-surface-variant truncate">
+                              {formatShortDate(tx.date)} · {typeCaption}
                             </p>
                           </div>
                         </div>
@@ -424,7 +462,7 @@ export const CardsScreen: React.FC<CardsScreenProps> = ({
                         <div className="flex items-center gap-1 shrink-0">
                           <span
                             className={`text-sm font-semibold font-mono tabular-nums mr-1 ${
-                              isPayment ? 'text-m3-success' : 'text-m3-on-surface'
+                              isPayment || isCashback ? 'text-m3-success' : 'text-m3-on-surface'
                             }`}
                           >
                             {isPayment ? '−' : '+'}
