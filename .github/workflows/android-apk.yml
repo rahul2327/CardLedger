@@ -75,7 +75,7 @@ jobs:
           test -f "${{ steps.build_apk.outputs.apk_path }}"
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CardLedger-${{ steps.build_apk.outputs.build_type }}-APK
           path: ${{ steps.build_apk.outputs.apk_path }}
@@ -83,9 +83,11 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: cardledger-${{ github.run_number }}-${{ github.run_attempt }}
-          name: CardLedger Native Android (${{ steps.build_apk.outputs.build_type }}) Build ${{ github.run_number }}
-          files: ${{ steps.build_apk.outputs.apk_path }}
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="cardledger-${{ github.run_number }}-${{ github.run_attempt }}"
+          TITLE="CardLedger Native Android (${{ steps.build_apk.outputs.build_type }}) Build ${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.build_apk.outputs.apk_path }}" \
+            --title "$TITLE" \
+            --generate-notes
