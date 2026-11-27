@@ -40,21 +40,45 @@ jobs:
                  android/app/src/test/java/com/getcapacitor \
                  android/app/src/androidTest/java/com/getcapacitor
 
-      - name: Build Native Android Debug APK
+      - name: Build Native Android APK (Release if secrets configured, else Debug)
+        id: build_apk
         working-directory: android
+        env:
+          CARDLEDGER_KEYSTORE_BASE64: ${{ secrets.CARDLEDGER_KEYSTORE_BASE64 }}
+          CARDLEDGER_STORE_PASSWORD: ${{ secrets.CARDLEDGER_STORE_PASSWORD }}
+          CARDLEDGER_KEY_ALIAS: ${{ secrets.CARDLEDGER_KEY_ALIAS }}
+          CARDLEDGER_KEY_PASSWORD: ${{ secrets.CARDLEDGER_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          if [ -n "$CARDLEDGER_KEYSTORE_BASE64" ] && [ -n "$CARDLEDGER_STORE_PASSWORD" ] && [ -n "$CARDLEDGER_KEY_ALIAS" ] && [ -n "$CARDLEDGER_KEY_PASSWORD" ]; then
+            echo "Release signing secrets detected — building signed Release APK"
+            printf '%s' "$CARDLEDGER_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > /tmp/cardledger-release.jks
+            export CARDLEDGER_STORE_FILE="/tmp/cardledger-release.jks"
+            ./gradlew assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/CardLedger-release.apk
+            echo "apk_path=android/app/build/outputs/apk/CardLedger-release.apk" >> "$GITHUB_OUTPUT"
+            echo "build_type=Release" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release signing secrets found — building Debug APK"
+            ./gradlew assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/CardLedger-debug.apk
+            echo "apk_path=android/app/build/outputs/apk/CardLedger-debug.apk" >> "$GITHUB_OUTPUT"
+            echo "build_type=Debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clean up temporary keystore
+        if: always()
+        run: rm -f /tmp/cardledger-release.jks
 
       - name: Verify APK
         run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "${{ steps.build_apk.outputs.apk_path }}"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CardLedger-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: CardLedger-${{ steps.build_apk.outputs.build_type }}-APK
+          path: ${{ steps.build_apk.outputs.apk_path }}
           if-no-files-found: error
           retention-days: 30
 
@@ -62,6 +86,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: cardledger-${{ github.run_number }}-${{ github.run_attempt }}
-          name: CardLedger Native Android Build ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: CardLedger Native Android (${{ steps.build_apk.outputs.build_type }}) Build ${{ github.run_number }}
+          files: ${{ steps.build_apk.outputs.apk_path }}
           generate_release_notes: true
