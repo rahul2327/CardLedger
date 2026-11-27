@@ -32,7 +32,7 @@ import {
   getCachedBiometricLock,
   promptBiometricAuth,
 } from './utils/biometricAuth';
-import {formatMoney, formatShortDate} from './utils/formatters';
+import {formatHeaderDate, formatMoney, formatShortDate} from './utils/formatters';
 import {
   hideNativeSplash,
   initNativeKeyboardHandling,
@@ -47,27 +47,12 @@ const NAV_ITEMS: Array<{id: NavTab; label: string; icon: React.ComponentType<{cl
   {id: 'settings', label: 'Settings', icon: Settings},
 ];
 
-const PAGE_TITLES: Record<NavTab, {title: string; subtitle: string}> = {
-  dashboard: {
-    title: 'Overview',
-    subtitle: 'Bank balance, card dues & upcoming bills',
-  },
-  cards: {
-    title: 'Credit Cards',
-    subtitle: 'Limits, billing cycles & per-card spending',
-  },
-  bills: {
-    title: 'Bills & Cycles',
-    subtitle: 'Generated statements & unbilled activity',
-  },
-  history: {
-    title: 'Transactions',
-    subtitle: 'Card spends, bank UPI, cashback & payments',
-  },
-  settings: {
-    title: 'Settings',
-    subtitle: 'Theme, currency & local JSON backups',
-  },
+const PAGE_TITLES: Record<NavTab, string> = {
+  dashboard: 'Overview',
+  cards: 'Credit Cards',
+  bills: 'Bills & Cycles',
+  history: 'Transactions',
+  settings: 'Settings',
 };
 
 const THEME_QUICK_OPTIONS: Array<{value: ThemeMode; label: string; icon: React.ComponentType<{className?: string}>}> = [
@@ -419,7 +404,7 @@ export default function App() {
     ? store.transactions.filter((t) => t.cardId === cardToDelete.id).length
     : 0;
 
-  const pageMeta = PAGE_TITLES[activeTab];
+  const pageTitle = PAGE_TITLES[activeTab];
 
   return (
     <div className="min-h-screen bg-m3-surface text-m3-on-surface flex flex-col md:flex-row">
@@ -522,28 +507,18 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col pt-safe">
-        {/* Google Messages-inspired Top App Header */}
-        <header className="px-4 sm:px-6 lg:px-8 pt-3.5 sm:pt-5 pb-3.5 flex items-start justify-between gap-3 max-w-7xl w-full mx-auto">
+        {/* Clean Top App Header (Date + Screen Title) */}
+        <header className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-4 flex items-center justify-between gap-3 max-w-7xl w-full mx-auto">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 md:hidden mb-1">
-              <img
-                src="/icon.svg"
-                alt="CardLedger logo"
-                className="w-5 h-5 rounded-md shrink-0"
-              />
-              <span className="font-display text-xs font-semibold tracking-tight text-m3-primary">
-                CardLedger
-              </span>
-            </div>
-            <h1 className="text-[22px] sm:text-2xl font-semibold tracking-tight text-m3-on-surface leading-tight">
-              {pageMeta.title}
-            </h1>
-            <p className="mt-0.5 text-xs sm:text-sm text-m3-on-surface-variant leading-snug">
-              {pageMeta.subtitle}
+            <p className="text-xs font-medium text-m3-on-surface-variant tracking-wide">
+              {formatHeaderDate(store.todayDate)}
             </p>
+            <h1 className="mt-0.5 text-2xl sm:text-[26px] font-semibold tracking-tight text-m3-on-surface leading-tight truncate">
+              {pageTitle}
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Quick Mobile Theme Toggle (Google Messages 40px icon button) */}
             <button
               type="button"

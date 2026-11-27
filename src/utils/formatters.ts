@@ -61,10 +61,27 @@ export function formatShortDate(dateStr: string): string {
   return `${day} ${SHORT_MONTHS[month - 1]} ${year}`;
 }
 
+const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
 export function formatDayMonth(dateStr: string): string {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   const {month, day} = parseDateParts(dateStr);
   return `${day} ${SHORT_MONTHS[month - 1]}`;
+}
+
+export function formatHeaderDate(dateStr: string): string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const {year, month, day} = parseDateParts(dateStr);
+  const dt = new Date(year, month - 1, day);
+  return `${WEEKDAYS[dt.getDay()]}, ${day} ${SHORT_MONTHS[month - 1]}`;
 }
 
 export function formatOrdinalDay(day: number): string {
