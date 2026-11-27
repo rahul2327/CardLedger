@@ -24,6 +24,22 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Clean legacy invalid resource & Capacitor artifacts
+        run: |
+          rm -rf android/app/src/main/res/drawable-night-land-* \
+                 android/app/src/main/res/drawable-night-port-* \
+                 android/app/src/main/java/com/rahul2327/cardledger/MainActivity.java \
+                 android/app/src/main/java/com/rahul2327/cardledger/BiometricAuthPlugin.java \
+                 android/app/src/main/res/layout/activity_main.xml \
+                 android/app/src/main/res/xml/config.xml \
+                 android/app/src/main/assets \
+                 android/app/capacitor.build.gradle \
+                 android/capacitor.settings.gradle \
+                 android/capacitor-cordova-android-plugins \
+                 android/variables.gradle \
+                 android/app/src/test/java/com/getcapacitor \
+                 android/app/src/androidTest/java/com/getcapacitor
+
       - name: Build Native Android Debug APK
         working-directory: android
         run: |
